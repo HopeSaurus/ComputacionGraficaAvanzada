@@ -37,7 +37,7 @@ struct  SpotLight{
 };
 
 const int MAX_POINT_LIGHTS = 20;
-const int MAX_SPOT_LIGHTS = 1;
+const int MAX_SPOT_LIGHTS = 20;
 
 out vec4 color;
 
@@ -67,13 +67,21 @@ vec3 calculateDirectionalLight(Light light, vec3 direction){
 	if(tiledCoords.x != 0 && tiledCoords.y != 0)
 		tiledCoords = scaleUV * tiledCoords;
 
-	vec4 blendMapColor = texture(blendMapTexture, our_uv);
+	/*vec4 blendMapColor = texture(blendMapTexture, our_uv);
 	float backTextureAmount = 1 - (blendMapColor.r + blendMapColor.g + blendMapColor.b);
 	vec4 backgroundTextureColor = texture(backgroundTexture, tiledCoords) * backTextureAmount;
 	vec4 rTextureColor = texture(rTexture, tiledCoords) * blendMapColor.r;
 	vec4 gTextureColor = texture(gTexture, tiledCoords) * blendMapColor.g;
 	vec4 bTextureColor = texture(bTexture, tiledCoords) * blendMapColor.b;
-	vec4 totalColor = backgroundTextureColor + rTextureColor + gTextureColor + bTextureColor;
+	vec4 totalColor = backgroundTextureColor + rTextureColor + gTextureColor + bTextureColor; */
+
+	vec4 blendMapColor = texture(blendMapTexture,our_uv);
+	float backTextureAmount = 1 - (blendMapColor.b + blendMapColor.r + blendMapColor.g);
+	vec4 backgroundTextureColor = texture(backgroundTexture,tiledCoords) * backTextureAmount;
+	vec4 bTextureColor = texture(bTexture,tiledCoords) * blendMapColor.b;
+	vec4 gTextureColor = texture(gTexture, tiledCoords) * blendMapColor.g;
+	vec4 rTextureColor = texture(rTexture,tiledCoords) * blendMapColor.r;
+	vec4 totalColor = backgroundTextureColor + bTextureColor +gTextureColor +rTextureColor;
 
 	// Ambient
     vec3 ambient  = light.ambient * vec3(totalColor);

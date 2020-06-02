@@ -69,6 +69,10 @@ public:
 		return this->front;
 	}
 
+	void setFront(glm::vec3 front) {
+		this->front = front;
+	}
+
 	glm::vec3 getRight() {
 		return this->right;
 	}
@@ -105,6 +109,10 @@ public:
 
 	void setDistanceFromTarget(float distanceFromTarget) {
 		this->distanceFromTarget = distanceFromTarget;
+	}
+
+	void setAngleAroundTarget(float angle) {
+		this->angleAroundTarget = angle;
 	}
 
 protected:

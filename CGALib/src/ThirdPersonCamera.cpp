@@ -11,6 +11,13 @@ ThirdPersonCamera::ThirdPersonCamera(){
     updateCamera();
 }
 
+void ThirdPersonCamera::setAngleAround(float angle) {
+
+	this->angleAroundTarget = angle;
+		
+}
+
+
 void ThirdPersonCamera::mouseMoveCamera(float xoffset, float yoffset, float dt){
     // Camera controls
     float cameraSpeed = sensitivity * dt;
