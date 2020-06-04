@@ -77,7 +77,7 @@ Shader shaderViewDepth;
 Shader shaderDepth;
 
 std::shared_ptr<Camera> camera(new ThirdPersonCamera());
-float distanceFromTarget = 7.0;
+float distanceFromTarget = 15;
 
 Sphere skyboxSphere(20, 20);
 Box boxCollider;
@@ -88,38 +88,9 @@ Box boxLightViewBox;
 ShadowBox* shadowBox;
 
 // Models complex instances
-Model modelRock;
-Model modelAircraft;
-Model modelHeliChasis;
-Model modelHeliHeli;
-Model modelLambo;
-Model modelLamboLeftDor;
-Model modelLamboRightDor;
-Model modelLamboFrontLeftWheel;
-Model modelLamboFrontRightWheel;
-Model modelLamboRearLeftWheel;
-Model modelLamboRearRightWheel;
-// Dart lego
-Model modelDartLegoBody;
-Model modelDartLegoHead;
-Model modelDartLegoMask;
-Model modelDartLegoLeftArm;
-Model modelDartLegoRightArm;
-Model modelDartLegoLeftHand;
-Model modelDartLegoRightHand;
-Model modelDartLegoLeftLeg;
-Model modelDartLegoRightLeg;
-// Lamps
-Model modelLamp1;
-Model modelLamp2;
-Model modelLampPost2;
-// Hierba
-Model modelGrass;
-// Fountain
+
 Model modelFountain;
 // Model animate instance
-// Mayow
-Model mayowModelAnimate;
 Model spaceshipClassicModelAnimate;
 // Terrain model instance
 Terrain terrain(-1, -1, 200, 16, "../Textures/heightmap.png");
@@ -149,46 +120,12 @@ int lastMousePosX, offsetX = 0;
 int lastMousePosY, offsetY = 0;
 
 // Model matrix definitions
-glm::mat4 matrixModelRock = glm::mat4(1.0);
-glm::mat4 modelMatrixHeli = glm::mat4(1.0f);
-glm::mat4 modelMatrixLambo = glm::mat4(1.0);
-glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
-glm::mat4 modelMatrixDart = glm::mat4(1.0f);
-glm::mat4 modelMatrixMayow = glm::mat4(1.0f);
-glm::mat4 modelMatrixFountain = glm::mat4(1.0f);
-
-
 glm::mat4 modelMatrixSpaceship = glm::mat4(1.0f);
 
 int animationIndex = 1;
-float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
-int modelSelected = 2;
-bool enableCountSelected = true;
 
-// Variables to animations keyframes
-bool saveFrame = false, availableSave = true;
-std::ofstream myfile;
-std::string fileName = "";
-bool record = false;
-
-// Joints interpolations Dart Lego
-std::vector<std::vector<float>> keyFramesDartJoints;
-std::vector<std::vector<glm::mat4>> keyFramesDart;
-int indexFrameDartJoints = 0;
-int indexFrameDartJointsNext = 1;
-float interpolationDartJoints = 0.0;
-int maxNumPasosDartJoints = 20;
-int numPasosDartJoints = 0;
-int indexFrameDart = 0;
-int indexFrameDartNext = 1;
-float interpolationDart = 0.0;
-int maxNumPasosDart = 200;
-int numPasosDart = 0;
-
-//vector direction of spaceship
-glm::vec3 spaceshipDirection(0.0f);
-
-
+//vector direction for spaceship
+glm::vec3 spaceshipDirection = glm::vec3(-1.0,0.0,0.0);
 
 // Blending model unsorted
 std::map<std::string, glm::vec3> blendingUnsorted = {
@@ -519,7 +456,8 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	spaceshipClassicModelAnimate.loadModel("../models/spaceship/nave_ver2.fbx");
 	spaceshipClassicModelAnimate.setShader(&shaderMulLighting);
 
-	camera->setPosition(glm::vec3(0.0, 0.0, 10.0));
+	camera->setPosition(glm::vec3(0.0, 0.0, 0.0));
+	camera->setFront(glm::vec3(0.0,-1.0,0.0));
 	camera->setDistanceFromTarget(distanceFromTarget);
 	camera->setSensitivity(1.0);
 
@@ -1006,6 +944,7 @@ void mouseCallback(GLFWwindow *window, double xpos, double ypos) {
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset){
 	distanceFromTarget -= yoffset;
 	camera->setDistanceFromTarget(distanceFromTarget);
+	std::cout << "distance: " << distanceFromTarget << std::endl;
 }
 
 void mouseButtonCallback(GLFWwindow *window, int button, int state, int mod) {
@@ -1030,74 +969,29 @@ bool processInput(bool continueApplication) {
 		return false;
 	}
 
-	if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
 		camera->mouseMoveCamera(offsetX, 0.0, deltaTime);
-	if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
+		spaceshipDirection = camera->getFront();
+		std::cout << "camera front: (" << spaceshipDirection.x <<","<< spaceshipDirection.y <<","<< spaceshipDirection.z<<")" << std::endl;
+	}
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
 		camera->mouseMoveCamera(0.0, offsetY, deltaTime);
+		std::cout << "camera pitch: " << camera->getPitch() << std::endl;
+	}
 	offsetX = 0;
 	offsetY = 0;
 
 	// Seleccionar modelo
-	if (enableCountSelected && glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS){
-		enableCountSelected = false;
-		modelSelected++;
-		if(modelSelected > 2)
-			modelSelected = 0;
-		if(modelSelected == 1)
-			fileName = "../animaciones/animation_dart_joints.txt";
-		if (modelSelected == 2)
-			fileName = "../animaciones/animation_dart.txt";
-		std::cout << "modelSelected:" << modelSelected << std::endl;
-	}
-	else if(glfwGetKey(window, GLFW_KEY_TAB) == GLFW_RELEASE)
-		enableCountSelected = true;
 
-	// Guardar key frames
-	if(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
-			&& glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS){
-		record = true;
-		if(myfile.is_open())
-			myfile.close();
-		myfile.open(fileName);
-	}
-	if(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE
-			&& glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS){
-		record = false;
-		myfile.close();
-		if(modelSelected == 1)
-			keyFramesDartJoints = getKeyRotFrames(fileName);
-		if (modelSelected == 2)
-			keyFramesDart = getKeyFrames(fileName);
-	}
-	if(availableSave && glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS){
-		saveFrame = true;
-		availableSave = false;
-	}if(glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_RELEASE)
-		availableSave = true;
-
-	// Dart Lego model movements
-	
-	if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-		modelMatrixDart = glm::rotate(modelMatrixDart, 0.02f, glm::vec3(0, 1, 0));
-	else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-		modelMatrixDart = glm::rotate(modelMatrixDart, -0.02f, glm::vec3(0, 1, 0));
-	if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-		modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(-0.02, 0.0, 0.0));
-	else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-		modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(0.02, 0.0, 0.0));
-
-	if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS){
-		modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(1.0f), glm::vec3(0, 1, 0));
+	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS){
+		modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(1.0f), glm::vec3(0, 1, 0));
+	}else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS){
+		modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-1.0f), glm::vec3(0, 1, 0));
 		animationIndex = 0;
-	}else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS){
-		modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-1.0f), glm::vec3(0, 1, 0));
-		animationIndex = 0;
-	}if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS){
-		modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(0, 0, 0.02));
-		animationIndex = 0;
-	}else if (modelSelected == 2 && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS){
-		modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(0, 0, -0.02));
-		animationIndex = 0;
+	}if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS){
+		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.02, 0, 0));
+	}else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS){
+		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0.02, 0, 0));
 	}
 
 	glfwPollEvents();
@@ -1112,33 +1006,13 @@ void applicationLoop() {
 	glm::vec3 target;
 	float angleTarget;
 
-	matrixModelRock = glm::translate(matrixModelRock, glm::vec3(-3.0, 0.0, 2.0));
-
-	modelMatrixHeli = glm::translate(modelMatrixHeli, glm::vec3(5.0, 10.0, -5.0));
-
-	modelMatrixAircraft = glm::translate(modelMatrixAircraft, glm::vec3(10.0, 2.0, -17.5));
-
-	modelMatrixLambo = glm::translate(modelMatrixLambo, glm::vec3(23.0, 0.0, 0.0));
-
-	modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(3.0, 0.0, 20.0));
-
-	modelMatrixMayow = glm::translate(modelMatrixMayow, glm::vec3(13.0f, 0.05f, -5.0f));
-	modelMatrixMayow = glm::rotate(modelMatrixMayow, glm::radians(-90.0f), glm::vec3(0, 1, 0));
-
-	modelMatrixFountain = glm::translate(modelMatrixFountain, glm::vec3(5.0, 0.0, -40.0));
-	modelMatrixFountain[3][1] = terrain.getHeightTerrain(modelMatrixFountain[3][0] , modelMatrixFountain[3][2]) + 0.2;
-	modelMatrixFountain = glm::scale(modelMatrixFountain, glm::vec3(10.0f, 10.0f, 10.0f));
-
 
 	modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(10.0, 2.0, -17.5));
-	modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship,glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
+
 
 
 
 	// Variables to interpolation key frames
-	fileName = "../animaciones/animation_dart_joints.txt";
-	keyFramesDartJoints = getKeyRotFrames(fileName);
-	keyFramesDart = getKeyFrames("../animaciones/animation_dart.txt");
 
 	lastTime = TimeManager::Instance().GetTime();
 
@@ -1183,10 +1057,11 @@ void applicationLoop() {
 			angleTarget = 0.0;
 		if(axis.y < 0)
 			angleTarget = -angleTarget;
-		if(modelSelected == 1)
-			angleTarget -= glm::radians(90.0f);
+
+
 		camera->setCameraTarget(target);
-		camera->setAngleTarget(angleTarget);
+		camera->setAngleTarget(glm::radians(-90.0f)+angleTarget); //this sets camera front :::: important
+		camera->setPitch(0.230067f);
 		camera->updateCamera();
 		view = camera->getViewMatrix();
 
@@ -1359,7 +1234,7 @@ void applicationLoop() {
 		// Collider de spaceship
 		AbstractModel::OBB spaceshipCollider;
 		glm::mat4 modelmatrixColliderSpaceship = glm::mat4(modelMatrixSpaceship);
-		//modelmatrixColliderSpaceship = glm::rotate(modelmatrixColliderSpaceship,glm::radians(90.0f), glm::vec3(1, 0, 0));
+		modelmatrixColliderSpaceship = glm::rotate(modelmatrixColliderSpaceship,glm::radians(90.0f), glm::vec3(1, 0, 0));
 		// Set the orientation of collider before doing the scale
 		spaceshipCollider.u = glm::quat_cast(modelmatrixColliderSpaceship);
 		modelmatrixColliderSpaceship = glm::scale(modelmatrixColliderSpaceship, glm::vec3(4.418, 0.497, 0.237));
@@ -1490,10 +1365,7 @@ void applicationLoop() {
 				if (!colIt->second)
 					addOrUpdateColliders(collidersOBB, jt->first);
 				else {
-					if (jt->first.compare("mayow") == 0)
-						modelMatrixMayow = std::get<1>(jt->second);
-					if (jt->first.compare("dart") == 0)
-						modelMatrixDart = std::get<1>(jt->second);
+
 				}
 			}
 		}
@@ -1514,6 +1386,8 @@ void applicationLoop() {
 		/****************************+
 		 * Open AL sound data
 		 */
+
+		/*
 		source0Pos[0] = modelMatrixFountain[3].x;
 		source0Pos[1] = modelMatrixFountain[3].y;
 		source0Pos[2] = modelMatrixFountain[3].z;
@@ -1539,6 +1413,8 @@ void applicationLoop() {
 		listenerOri[3] = upModel.x;
 		listenerOri[4] = upModel.y;
 		listenerOri[5] = upModel.z;
+		*/
+
 
 		// Listener for the First person camera
 		/*listenerPos[0] = camera->getPosition().x;
@@ -1566,10 +1442,6 @@ void prepareScene(){
 
 	skyboxSphere.setShader(&shaderSkybox);
 
-	modelRock.setShader(&shaderMulLighting);
-
-	modelAircraft.setShader(&shaderMulLighting);
-
 	terrain.setShader(&shaderTerrain);
 
 	spaceshipClassicModelAnimate.setShader(&shaderMulLighting);
@@ -1578,10 +1450,6 @@ void prepareScene(){
 void prepareDepthScene(){
 
 	skyboxSphere.setShader(&shaderDepth);
-
-	modelRock.setShader(&shaderDepth);
-
-	modelAircraft.setShader(&shaderDepth);
 
 	terrain.setShader(&shaderDepth);
 
@@ -1631,6 +1499,7 @@ void renderScene(bool renderParticles){
 	//glEnable(GL_COLOR_MATERIAL);
 	glColor3f(1, 1, 1);
 	glm::mat4 modelMatrixSpaceshipBody = glm::mat4(modelMatrixSpaceship);
+	modelMatrixSpaceshipBody = glm::rotate(modelMatrixSpaceshipBody, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
 	modelMatrixSpaceshipBody = glm::scale(modelMatrixSpaceshipBody, glm::vec3(4.418, 0.497, 0.237));
 	spaceshipClassicModelAnimate.setAnimationIndex(0);
 	spaceshipClassicModelAnimate.render(modelMatrixSpaceshipBody);

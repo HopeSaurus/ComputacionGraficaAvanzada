@@ -71,6 +71,7 @@ public:
 
 	void setFront(glm::vec3 front) {
 		this->front = front;
+		this->updateCamera();
 	}
 
 	glm::vec3 getRight() {
@@ -113,6 +114,22 @@ public:
 
 	void setAngleAroundTarget(float angle) {
 		this->angleAroundTarget = angle;
+	}
+
+	void setPitch(float pitch) {
+		this->pitch = pitch;
+	}
+
+	void setYaw(float yaw) {
+		this->yaw = yaw;
+	}
+
+	float getYaw() {
+		return this->yaw;
+	}
+
+	float getPitch() {
+		return this->pitch;
 	}
 
 protected:
