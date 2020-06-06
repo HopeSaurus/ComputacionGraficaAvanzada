@@ -69,15 +69,16 @@ Shader shaderMulLighting;
 Shader shaderTerrain;
 //Shader para las particulas de fountain
 Shader shaderParticlesFountain;
-//Shader para las particulas de fuego
-Shader shaderParticlesFire;
+//Shader para las particulas de la turbina
+Shader shaderParticlesLeftThruster;
+Shader shaderParticlesRightThruster;
 //Shader para visualizar el buffer de profundidad
 Shader shaderViewDepth;
 //Shader para dibujar el buffer de profunidad
 Shader shaderDepth;
 
 std::shared_ptr<Camera> camera(new ThirdPersonCamera());
-float distanceFromTarget = 15;
+float distanceFromTarget = 7;
 
 Sphere skyboxSphere(20, 20);
 Box boxCollider;
@@ -88,7 +89,7 @@ Box boxLightViewBox;
 ShadowBox* shadowBox;
 
 // Models complex instances
-
+Model modelCrosshair;
 Model modelFountain;
 // Model animate instance
 Model spaceshipClassicModelAnimate;
@@ -97,7 +98,7 @@ Terrain terrain(-1, -1, 200, 16, "../Textures/heightmap.png");
 
 GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID, textureLandingPadID;
 GLuint textureTerrainBackgroundID, textureTerrainRID, textureTerrainGID, textureTerrainBID, textureTerrainBlendMapID;
-GLuint textureParticleFountainID, textureParticleFireID, texId;
+GLuint textureParticleFountainID, textureParticleThrusterID, texId;
 GLuint skyboxTextureID;
 
 GLenum types[6] = {
@@ -115,12 +116,36 @@ std::string fileNames[6] = { "../Textures/space/blue/bkg1_front.png",
 		"../Textures/space/blue/bkg1_right.png",
 		"../Textures/space/blue/bkg1_left.png" };
 
+
+
+//spaceship movement variables
+float spaceshipRotX = 1.0;
+float spaceshipRotY = 1.0;
+float spaceshipRotZ = 1.0;
+float spaceshipRotXLimit = 0;
+float spaceshipRotYLimit = 0;
+float spaceshipRotZLimit = 0;
+float spaceshipDownMov = 0;
+bool downPressed = false;
+bool upPressed = false;
+bool rightPressed = false;
+bool leftPressed = false;
+float heightOfTurn = 0;
+int numberOfTicksD = 0;
+int numberOfTicksU = 0;
+int numberOfTicksR = 0;
+int numberOfTicksL = 0;
+bool accelEnabled = false;
+bool brakeEnabled = false;
+glm::vec3 thrusterAccelDir = glm::vec3(0.0f,0.01f,0.0f);
+
 bool exitApp = false;
 int lastMousePosX, offsetX = 0;
 int lastMousePosY, offsetY = 0;
 
 // Model matrix definitions
 glm::mat4 modelMatrixSpaceship = glm::mat4(1.0f);
+glm::mat4 modelMatrixCrosshair = glm::mat4(1.0f);
 
 int animationIndex = 1;
 
@@ -129,11 +154,9 @@ glm::vec3 spaceshipDirection = glm::vec3(-1.0,0.0,0.0);
 
 // Blending model unsorted
 std::map<std::string, glm::vec3> blendingUnsorted = {
-		{"aircraft", glm::vec3(10.0, 0.0, -17.5)},
-		{"lambo", glm::vec3(23.0, 0.0, 0.0)},
-		{"heli", glm::vec3(5.0, 10.0, -5.0)},
 		{"fountain", glm::vec3(5.0, 0.0, -40.0)},
-		{"fire", glm::vec3(0.0, 0.0, 7.0)}
+		{"Thruster", glm::vec3(0.0, 0.0, 7.0)},
+		{"ThrusterR", glm::vec3(0.0, 0.0, 10.0)}
 };
 
 double deltaTime;
@@ -145,16 +168,16 @@ GLuint VAOParticles;
 GLuint nParticles = 8000;
 double currTimeParticlesAnimation, lastTimeParticlesAnimation;
 
-// Definition for the particle system fire
-GLuint initVelFire, startTimeFire;
-GLuint VAOParticlesFire;
-GLuint nParticlesFire = 2000;
+// Definition for the particle system Thruster
+GLuint initVelThruster, startTimeThruster;
+GLuint VAOParticlesThruster;
+GLuint nParticlesThruster = 100;
 GLuint posBuf[2], velBuf[2], age[2];
 GLuint particleArray[2];
 GLuint feedback[2];
 GLuint drawBuf = 1;
 float particleSize = 0.5, particleLifetime = 3.0;
-double currTimeParticlesAnimationFire, lastTimeParticlesAnimationFire;
+double currTimeParticlesAnimationThruster, lastTimeParticlesAnimationThruster;
 
 // Colliders
 std::map<std::string, std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> > collidersOBB;
@@ -274,14 +297,14 @@ void initParticleBuffers() {
 	glBindVertexArray(0);
 }
 
-void initParticleBuffersFire() {
+void initParticleBuffersThruster() {
 	// Generate the buffers
 	glGenBuffers(2, posBuf);    // position buffers
 	glGenBuffers(2, velBuf);    // velocity buffers
 	glGenBuffers(2, age);       // age buffers
 
 	// Allocate space for all buffers
-	int size = nParticlesFire * sizeof(GLfloat);
+	int size = nParticlesThruster * sizeof(GLfloat);
 	glBindBuffer(GL_ARRAY_BUFFER, posBuf[0]);
 	glBufferData(GL_ARRAY_BUFFER, 3 * size, 0, GL_DYNAMIC_COPY);
 	glBindBuffer(GL_ARRAY_BUFFER, posBuf[1]);
@@ -296,10 +319,10 @@ void initParticleBuffersFire() {
 	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_COPY);
 
 	// Fill the first age buffer
-	std::vector<GLfloat> initialAge(nParticlesFire);
-	float rate = particleLifetime / nParticlesFire;
-	for(unsigned int i = 0; i < nParticlesFire; i++ ) {
-		int index = i - nParticlesFire;
+	std::vector<GLfloat> initialAge(nParticlesThruster);
+	float rate = particleLifetime / nParticlesThruster;
+	for(unsigned int i = 0; i < nParticlesThruster; i++ ) {
+		int index = i - nParticlesThruster;
 		float result = rate * index;
 		initialAge[i] = result;
 	}
@@ -423,7 +446,8 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	shaderMulLighting.initialize("../Shaders/iluminacion_textura_animation_shadow.vs", "../Shaders/multipleLights_shadow.fs");
 	shaderTerrain.initialize("../Shaders/terrain_shadow.vs", "../Shaders/terrain_shadow.fs");
 	shaderParticlesFountain.initialize("../Shaders/particlesFountain.vs", "../Shaders/particlesFountain.fs");
-	shaderParticlesFire.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
+	shaderParticlesLeftThruster.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
+	shaderParticlesRightThruster.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
 	shaderViewDepth.initialize("../Shaders/texturizado.vs", "../Shaders/texturizado_depth_view.fs");
 	shaderDepth.initialize("../Shaders/shadow_mapping_depth.vs", "../Shaders/shadow_mapping_depth.fs");
 
@@ -453,8 +477,13 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	terrain.setPosition(glm::vec3(100, 0, 100));
 
 	//spaceship
-	spaceshipClassicModelAnimate.loadModel("../models/spaceship/nave_ver2.fbx");
+	spaceshipClassicModelAnimate.loadModel("../models/spaceship/nave_ver3.fbx");
 	spaceshipClassicModelAnimate.setShader(&shaderMulLighting);
+
+	//spaceship Crosshair 
+	
+	modelCrosshair.loadModel("../models/crosshair/crosshair.fbx");
+	modelCrosshair.setShader(&shaderMulLighting);
 
 	camera->setPosition(glm::vec3(0.0, 0.0, 0.0));
 	camera->setFront(glm::vec3(0.0,-1.0,0.0));
@@ -702,11 +731,11 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 		std::cout << "Failed to load texture" << std::endl;
 	textureParticlesFountain.freeImage(bitmap);
 
-	Texture textureParticleFire("../Textures/fire.png");
-	bitmap = textureParticleFire.loadImage();
-	data = textureParticleFire.convertToData(bitmap, imageWidth, imageHeight);
-	glGenTextures(1, &textureParticleFireID);
-	glBindTexture(GL_TEXTURE_2D, textureParticleFireID);
+	Texture textureParticleThruster("../Textures/light.png");
+	bitmap = textureParticleThruster.loadImage();
+	data = textureParticleThruster.convertToData(bitmap, imageWidth, imageHeight);
+	glGenTextures(1, &textureParticleThrusterID);
+	glBindTexture(GL_TEXTURE_2D, textureParticleThrusterID);
 	// set the texture wrapping parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);// set texture wrapping to GL_REPEAT (default wrapping method)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -720,13 +749,13 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	}
 	else
 		std::cout << "Failed to load texture" << std::endl;
-	textureParticleFire.freeImage(bitmap);
+	textureParticleThruster.freeImage(bitmap);
 
 	std::uniform_real_distribution<float> distr01 = std::uniform_real_distribution<float>(0.0f, 1.0f);
 	std::mt19937 generator;
 	std::random_device rd;
 	generator.seed(rd());
-	int size = nParticlesFire * 2;
+	int size = nParticlesThruster * 2;
 	std::vector<GLfloat> randData(size);
 	for( int i = 0; i < randData.size(); i++ ) {
 		randData[i] = distr01(generator);
@@ -739,13 +768,21 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-	shaderParticlesFire.setInt("Pass", 1);
-	shaderParticlesFire.setInt("ParticleTex", 0);
-	shaderParticlesFire.setInt("RandomTex", 1);
-	shaderParticlesFire.setFloat("ParticleLifetime", particleLifetime);
-	shaderParticlesFire.setFloat("ParticleSize", particleSize);
-	shaderParticlesFire.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0.0f,0.1f,0.0f)));
-	shaderParticlesFire.setVectorFloat3("Emitter", glm::value_ptr(glm::vec3(0.0f)));
+	shaderParticlesLeftThruster.setInt("Pass", 1);
+	shaderParticlesLeftThruster.setInt("ParticleTex", 0);
+	shaderParticlesLeftThruster.setInt("RandomTex", 1);
+	shaderParticlesLeftThruster.setFloat("ParticleLifetime", particleLifetime);
+	shaderParticlesLeftThruster.setFloat("ParticleSize", particleSize);
+	shaderParticlesLeftThruster.setVectorFloat3("Accel", glm::value_ptr(thrusterAccelDir));
+	shaderParticlesLeftThruster.setVectorFloat3("Emitter", glm::value_ptr(glm::vec3(0.0f)));
+
+	shaderParticlesRightThruster.setInt("Pass", 1);
+	shaderParticlesRightThruster.setInt("ParticleTex", 0);
+	shaderParticlesRightThruster.setInt("RandomTex", 1);
+	shaderParticlesRightThruster.setFloat("ParticleLifetime", particleLifetime);
+	shaderParticlesRightThruster.setFloat("ParticleSize", particleSize);
+	shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(thrusterAccelDir));
+	shaderParticlesRightThruster.setVectorFloat3("Emitter", glm::value_ptr(glm::vec3(0.0f)));
 
 	glm::mat3 basis;
 	glm::vec3 u, v, n;
@@ -758,7 +795,8 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	basis[0] = glm::normalize(u);
 	basis[1] = glm::normalize(v);
 	basis[2] = glm::normalize(n);
-	shaderParticlesFire.setMatrix3("EmitterBasis", 1, false, glm::value_ptr(basis));
+	shaderParticlesLeftThruster.setMatrix3("EmitterBasis", 1, false, glm::value_ptr(basis));
+	shaderParticlesRightThruster.setMatrix3("EmitterBasis", 1, false, glm::value_ptr(basis));
 
 	/*******************************************
 	 * Inicializacion de los buffers de la fuente
@@ -768,7 +806,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	/*******************************************
 	 * Inicializacion de los buffers del fuego
 	 *******************************************/
-	initParticleBuffersFire();
+	initParticleBuffersThruster();
 
 	/*******************************************
 	 * Inicializacion del framebuffer para
@@ -868,7 +906,8 @@ void destroy() {
 	shaderSkybox.destroy();
 	shaderTerrain.destroy();
 	shaderParticlesFountain.destroy();
-	shaderParticlesFire.destroy();
+	shaderParticlesLeftThruster.destroy();
+	shaderParticlesRightThruster.destroy();
 
 	// Basic objects Delete
 	skyboxSphere.destroy();
@@ -880,7 +919,7 @@ void destroy() {
 	terrain.destroy();
 
 	// Custom objects Delete
-
+	modelCrosshair.destroy();
 	// Custom objects animate
 	spaceshipClassicModelAnimate.destroy();
 
@@ -893,7 +932,7 @@ void destroy() {
 	glDeleteTextures(1, &textureTerrainBID);
 	glDeleteTextures(1, &textureTerrainBlendMapID);
 	glDeleteTextures(1, &textureParticleFountainID);
-	glDeleteTextures(1, &textureParticleFireID);
+	glDeleteTextures(1, &textureParticleThrusterID);
 
 	// Cube Maps Delete
 	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
@@ -906,7 +945,7 @@ void destroy() {
 	glBindVertexArray(0);
 	glDeleteVertexArrays(1, &VAOParticles);
 
-	// Remove the buffer of the fire particles
+	// Remove the buffer of the Thruster particles
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDeleteBuffers(2, posBuf);
 	glDeleteBuffers(2, velBuf);
@@ -914,7 +953,7 @@ void destroy() {
 	glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
 	glDeleteTransformFeedbacks(2, feedback);
 	glBindVertexArray(0);
-	glDeleteVertexArrays(1, &VAOParticlesFire);
+	glDeleteVertexArrays(1, &VAOParticlesThruster);
 }
 
 void reshapeCallback(GLFWwindow *Window, int widthRes, int heightRes) {
@@ -981,18 +1020,79 @@ bool processInput(bool continueApplication) {
 	offsetX = 0;
 	offsetY = 0;
 
-	// Seleccionar modelo
-
-	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS){
-		modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(1.0f), glm::vec3(0, 1, 0));
-	}else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS){
-		modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-1.0f), glm::vec3(0, 1, 0));
-		animationIndex = 0;
-	}if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS){
-		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.02, 0, 0));
-	}else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS){
-		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0.02, 0, 0));
+	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+		leftPressed = true;
+		if (numberOfTicksL < 20) {
+			modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
+			spaceshipRotXLimit += spaceshipRotX;
+			numberOfTicksL++;
+		}
+		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, -0.2, 0.07));
 	}
+	else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS){
+			rightPressed = true;
+			if (numberOfTicksR < 20) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotX), glm::vec3(1, 0, 0));
+				spaceshipRotXLimit -= spaceshipRotX;
+				numberOfTicksR++;
+			}
+			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0.2, 0.07));
+	}
+	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_RELEASE) {
+
+		rightPressed = false;
+
+	}
+	
+	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_RELEASE) {
+		leftPressed = false;
+	}
+
+	
+	
+	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS){
+		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.2, 0, 0));
+		accelEnabled=true;
+	}else if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS){
+		//modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0.2, 0, 0));
+		brakeEnabled = true;
+
+	}
+	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
+		accelEnabled = false;
+	}
+	if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE) {
+		brakeEnabled = false;
+	}
+
+
+	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+		upPressed = true;
+		if (numberOfTicksU < 20) {
+			modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
+			spaceshipRotZLimit += spaceshipRotZ;
+			numberOfTicksU++;
+		}
+		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0,0.1));
+	}
+	else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+		downPressed = true;
+		if (numberOfTicksD < 20) {
+			modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
+			spaceshipRotZLimit -= spaceshipRotZ;
+			numberOfTicksD++;
+		}
+		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0,0, -0.1));
+	}
+	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_RELEASE) {
+		downPressed = false;
+		heightOfTurn = glm::sin(spaceshipRotZLimit)*9.87/numberOfTicksD* 0.429;
+	}
+	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_RELEASE) {
+		upPressed = false;
+		heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksU * 0.429;
+	}
+
 
 	glfwPollEvents();
 	return continueApplication;
@@ -1008,11 +1108,7 @@ void applicationLoop() {
 
 
 	modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(10.0, 2.0, -17.5));
-
-
-
-
-	// Variables to interpolation key frames
+	modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-90.0f), glm::vec3(1,0,0));
 
 	lastTime = TimeManager::Instance().GetTime();
 
@@ -1020,8 +1116,8 @@ void applicationLoop() {
 	currTimeParticlesAnimation = lastTime;
 	lastTimeParticlesAnimation = lastTime;
 
-	currTimeParticlesAnimationFire = lastTime;
-	lastTimeParticlesAnimationFire = lastTime;
+	currTimeParticlesAnimationThruster = lastTime;
+	lastTimeParticlesAnimationThruster = lastTime;
 
 	glm::vec3 lightPos = glm::vec3(10.0, 10.0, 0.0);
 
@@ -1041,8 +1137,6 @@ void applicationLoop() {
 		std::map<std::string, bool> collisionDetection;
 
 		// Variables donde se guardan las matrices de cada articulacion por 1 frame
-		std::vector<float> matrixDartJoints;
-		std::vector<glm::mat4> matrixDart;
 
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f),
 				(float) screenWidth / (float) screenHeight, 0.1f, 100.0f);
@@ -1060,7 +1154,7 @@ void applicationLoop() {
 
 
 		camera->setCameraTarget(target);
-		camera->setAngleTarget(glm::radians(-90.0f)+angleTarget); //this sets camera front :::: important
+		camera->setAngleTarget(glm::radians(-90.0f)); //this sets camera front :::: important
 		camera->setPitch(0.230067f);
 		camera->updateCamera();
 		view = camera->getViewMatrix();
@@ -1116,10 +1210,14 @@ void applicationLoop() {
 					glm::value_ptr(projection));
 		shaderParticlesFountain.setMatrix4("view", 1, false,
 				glm::value_ptr(view));
-		// Settea la matriz de vista y projection al shader para el fuego
-		shaderParticlesFire.setInt("Pass", 2);
-		shaderParticlesFire.setMatrix4("projection", 1, false, glm::value_ptr(projection));
-		shaderParticlesFire.setMatrix4("view", 1, false, glm::value_ptr(view));
+		// Settea la matriz de vista y projection al shader para la turbina
+		shaderParticlesLeftThruster.setInt("Pass", 2);
+		shaderParticlesLeftThruster.setMatrix4("projection", 1, false, glm::value_ptr(projection));
+		shaderParticlesLeftThruster.setMatrix4("view", 1, false, glm::value_ptr(view));
+
+		shaderParticlesRightThruster.setInt("Pass", 2);
+		shaderParticlesRightThruster.setMatrix4("projection", 1, false, glm::value_ptr(projection));
+		shaderParticlesRightThruster.setMatrix4("view", 1, false, glm::value_ptr(view));
 
 		/*******************************************
 		 * Propiedades de neblina
@@ -1234,15 +1332,16 @@ void applicationLoop() {
 		// Collider de spaceship
 		AbstractModel::OBB spaceshipCollider;
 		glm::mat4 modelmatrixColliderSpaceship = glm::mat4(modelMatrixSpaceship);
-		modelmatrixColliderSpaceship = glm::rotate(modelmatrixColliderSpaceship,glm::radians(90.0f), glm::vec3(1, 0, 0));
+		//modelmatrixColliderSpaceship = glm::rotate(modelmatrixColliderSpaceship,glm::radians(90.0f), glm::vec3(1, 0, 0));
 		// Set the orientation of collider before doing the scale
 		spaceshipCollider.u = glm::quat_cast(modelmatrixColliderSpaceship);
 		modelmatrixColliderSpaceship = glm::scale(modelmatrixColliderSpaceship, glm::vec3(4.418, 0.497, 0.237));
+		modelmatrixColliderSpaceship = glm::scale(modelmatrixColliderSpaceship, glm::vec3(0.5, 0.5, 0.5));
 		modelmatrixColliderSpaceship = glm::translate(modelmatrixColliderSpaceship,
 			glm::vec3(spaceshipClassicModelAnimate.getObb().c.x,
 				spaceshipClassicModelAnimate.getObb().c.y,
 				spaceshipClassicModelAnimate.getObb().c.z));
-		spaceshipCollider.e = spaceshipClassicModelAnimate.getObb().e * glm::vec3(4.418, 0.497, 0.237);
+		spaceshipCollider.e = spaceshipClassicModelAnimate.getObb().e * glm::vec3(4.418, 0.497, 0.237) * glm::vec3(0.5, 0.5, 0.5);
 		spaceshipCollider.c = glm::vec3(modelmatrixColliderSpaceship[3]);
 		addOrUpdateColliders(collidersOBB, "spaceship", spaceshipCollider, modelMatrixSpaceship);
 
@@ -1375,13 +1474,54 @@ void applicationLoop() {
 		 *******************************************/
 		
 		// Constantes de animaciones
-		animationIndex = 1;
+		
 
 		/*******************************************
 		 * State machines
 		 *******************************************/
 
+
 		glfwSwapBuffers(window);
+
+
+		if (!downPressed && numberOfTicksD != 0) {
+			if (spaceshipRotZLimit < 0) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
+				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, -0.1));
+				spaceshipRotZLimit += spaceshipRotZ;
+				numberOfTicksD--;
+			}
+
+		}
+		if (!upPressed && numberOfTicksU != 0) {
+			if (spaceshipRotZLimit > 0) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
+				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, 0.1));
+				spaceshipRotZLimit -= spaceshipRotZ;
+				numberOfTicksU--;
+			}
+
+		}
+
+		if (!rightPressed && numberOfTicksR != 0) {
+			if (spaceshipRotXLimit < 0) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
+				spaceshipRotXLimit += spaceshipRotX;
+				numberOfTicksR--;
+			}
+
+		}
+
+		if (!leftPressed && numberOfTicksL != 0) {
+			if (spaceshipRotXLimit > 0) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotX), glm::vec3(1, 0, 0));
+				spaceshipRotXLimit -= spaceshipRotX;
+				numberOfTicksL--;
+			}
+
+		}
+
+
 
 		/****************************+
 		 * Open AL sound data
@@ -1445,6 +1585,8 @@ void prepareScene(){
 	terrain.setShader(&shaderTerrain);
 
 	spaceshipClassicModelAnimate.setShader(&shaderMulLighting);
+
+	modelCrosshair.setShader(&shaderMulLighting);
 }
 
 void prepareDepthScene(){
@@ -1454,6 +1596,8 @@ void prepareDepthScene(){
 	terrain.setShader(&shaderDepth);
 
 	spaceshipClassicModelAnimate.setShader(&shaderDepth);
+
+
 }
 
 void renderScene(bool renderParticles){
@@ -1492,15 +1636,27 @@ void renderScene(bool renderParticles){
 	 * Custom objects obj
 	 *******************************************/
 
+	glm::mat4 modelMatrixCrosshair = glm::mat4(modelMatrixSpaceship);
+	
+	modelMatrixCrosshair = glm::translate(modelMatrixCrosshair, glm::vec3(-15, 0, 0));
+	modelMatrixCrosshair = glm::rotate(modelMatrixCrosshair, glm::radians(90.0f), glm::vec3(0, 1, 0));
+	modelMatrixCrosshair = glm::scale(modelMatrixCrosshair, glm::vec3(3,3,3));
+	modelCrosshair.render(modelMatrixCrosshair);
+	glm::mat4 modelMatrixCrosshairFar = glm::mat4(modelMatrixSpaceship);
+	modelMatrixCrosshairFar = glm::translate(modelMatrixCrosshairFar, glm::vec3(-20, 0, 0));
+	modelMatrixCrosshairFar = glm::rotate(modelMatrixCrosshairFar, glm::radians(90.0f), glm::vec3(0, 1, 0));
+	modelMatrixCrosshairFar = glm::scale(modelMatrixCrosshairFar, glm::vec3(2, 2, 2));
+	modelCrosshair.render(modelMatrixCrosshairFar);
+
 	/*******************************************
 	 * Custom Anim objects obj
 	 *******************************************/
-	glBindTexture(GL_TEXTURE_2D, 0);
-	//glEnable(GL_COLOR_MATERIAL);
+
 	glColor3f(1, 1, 1);
 	glm::mat4 modelMatrixSpaceshipBody = glm::mat4(modelMatrixSpaceship);
-	modelMatrixSpaceshipBody = glm::rotate(modelMatrixSpaceshipBody, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
+	//modelMatrixSpaceshipBody = glm::rotate(modelMatrixSpaceshipBody, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
 	modelMatrixSpaceshipBody = glm::scale(modelMatrixSpaceshipBody, glm::vec3(4.418, 0.497, 0.237));
+	modelMatrixSpaceshipBody = glm::scale(modelMatrixSpaceshipBody, glm::vec3(0.5, 0.5, 0.5));
 	spaceshipClassicModelAnimate.setAnimationIndex(0);
 	spaceshipClassicModelAnimate.render(modelMatrixSpaceshipBody);
 
@@ -1560,16 +1716,85 @@ void renderScene(bool renderParticles){
 			 * End Render particles systems
 			 */
 		}
-		else if(renderParticles && it->second.first.compare("fire") == 0){
+		else if(renderParticles && it->second.first.compare("Thruster") == 0){
 			/**********
 			 * Init Render particles systems
 			 */
-			lastTimeParticlesAnimationFire = currTimeParticlesAnimationFire;
-			currTimeParticlesAnimationFire = TimeManager::Instance().GetTime();
+			lastTimeParticlesAnimationThruster = currTimeParticlesAnimationThruster;
+			currTimeParticlesAnimationThruster = TimeManager::Instance().GetTime();
 
-			shaderParticlesFire.setInt("Pass", 1);
-			shaderParticlesFire.setFloat("Time", currTimeParticlesAnimationFire);
-			shaderParticlesFire.setFloat("DeltaT", currTimeParticlesAnimationFire - lastTimeParticlesAnimationFire);
+			shaderParticlesLeftThruster.setInt("Pass", 1);
+			if (accelEnabled) {
+
+
+				if (leftPressed) {
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(100, 0, 0)));
+				}
+				else if (rightPressed) {
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(-100, 0, 0)));
+
+				} 
+				else if (upPressed) {
+
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 0, 100)));
+
+				}
+				else if (downPressed) {
+
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 0, -100)));
+
+				}
+				else shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 10, 0)));
+
+
+
+			}
+			else if (brakeEnabled) {
+				if (leftPressed) {
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(1.0, 0, 0)));
+				}
+				else if (rightPressed) {
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(-1.0, 0, 0)));
+				}
+				else if (upPressed) {
+
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 0, 1.0)));
+
+				}
+				else if (downPressed) {
+
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 0, -1.0)));
+
+				}
+				else shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 0.1, 0)));
+			}
+			else {
+
+
+				if (leftPressed) {
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(10, 0, 0)));
+				}
+				else if (rightPressed) {
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(-10, 0, 0)));
+				}
+				else if (upPressed) {
+
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 0, 10)));
+
+				}
+				else if (downPressed) {
+
+					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 0, -10)));
+
+				}
+				else shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(0, 1.0, 0)));
+
+			}
+
+
+			shaderParticlesLeftThruster.setFloat("Time", currTimeParticlesAnimationThruster);
+			shaderParticlesLeftThruster.setFloat("DeltaT", currTimeParticlesAnimationThruster - lastTimeParticlesAnimationThruster);
+
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_1D, texId);
@@ -1580,41 +1805,93 @@ void renderScene(bool renderParticles){
 			glVertexAttribDivisor(0,0);
 			glVertexAttribDivisor(1,0);
 			glVertexAttribDivisor(2,0);
-			glDrawArrays(GL_POINTS, 0, nParticlesFire);
+			glDrawArrays(GL_POINTS, 0, nParticlesThruster);
 			glEndTransformFeedback();
 			glDisable(GL_RASTERIZER_DISCARD);
 
-			shaderParticlesFire.setInt("Pass", 2);
-			glm::mat4 modelFireParticles = glm::mat4(1.0);
-			modelFireParticles = glm::translate(modelFireParticles, it->second.second);
-			modelFireParticles[3][1] = terrain.getHeightTerrain(modelFireParticles[3][0], modelFireParticles[3][2]);
-			shaderParticlesFire.setMatrix4("model", 1, false, glm::value_ptr(modelFireParticles));
+			shaderParticlesLeftThruster.setInt("Pass", 2);
+			glm::mat4 modelThrusterParticles = glm::mat4(modelMatrixSpaceshipBody);
+			modelThrusterParticles = glm::translate(modelThrusterParticles, glm::vec3(0.005856, -1.83928 , -0.550695));
+			modelThrusterParticles = glm::rotate(modelThrusterParticles, glm::radians(90.0f), glm :: vec3(0, 0, 1));
+			modelThrusterParticles = glm::rotate(modelThrusterParticles, glm::radians(180.0f), glm::vec3(1, 0, 0 ));
+			shaderParticlesLeftThruster.setMatrix4("model", 1, false, glm::value_ptr(modelThrusterParticles));
 
-			shaderParticlesFire.turnOn();
+
+
+			shaderParticlesLeftThruster.turnOn();
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, textureParticleFireID);
+			glBindTexture(GL_TEXTURE_2D, textureParticleThrusterID);
 			glDepthMask(GL_FALSE);
 			glBindVertexArray(particleArray[drawBuf]);
 			glVertexAttribDivisor(0,1);
 			glVertexAttribDivisor(1,1);
 			glVertexAttribDivisor(2,1);
-			glDrawArraysInstanced(GL_TRIANGLES, 0, 6, nParticlesFire);
+			glDrawArraysInstanced(GL_TRIANGLES, 0, 6, nParticlesThruster);
 			glBindVertexArray(0);
 			glDepthMask(GL_TRUE);
 			drawBuf = 1 - drawBuf;
-			shaderParticlesFire.turnOff();
+			shaderParticlesLeftThruster.turnOff();
+
+
 
 			/****************************+
 			 * Open AL sound data
 			 */
-			source1Pos[0] = modelFireParticles[3].x;
-			source1Pos[1] = modelFireParticles[3].y;
-			source1Pos[2] = modelFireParticles[3].z;
+			source1Pos[0] = modelThrusterParticles[3].x;
+			source1Pos[1] = modelThrusterParticles[3].y;
+			source1Pos[2] = modelThrusterParticles[3].z;
 			alSourcefv(source[1], AL_POSITION, source1Pos);
 
 			/**********
 			 * End Render particles systems
 			 */
+		}
+		else if (renderParticles && it->second.first.compare("ThrusterR") == 0) {
+
+		lastTimeParticlesAnimationThruster = currTimeParticlesAnimationThruster;
+		currTimeParticlesAnimationThruster = TimeManager::Instance().GetTime();
+
+
+		shaderParticlesRightThruster.setInt("Pass", 1);
+		shaderParticlesRightThruster.setFloat("Time", currTimeParticlesAnimationThruster);
+		shaderParticlesRightThruster.setFloat("DeltaT", currTimeParticlesAnimationThruster - lastTimeParticlesAnimationThruster);
+
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_1D, texId);
+		glEnable(GL_RASTERIZER_DISCARD);
+		glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, feedback[drawBuf]);
+		glBeginTransformFeedback(GL_POINTS);
+		glBindVertexArray(particleArray[1 - drawBuf]);
+		glVertexAttribDivisor(0, 0);
+		glVertexAttribDivisor(1, 0);
+		glVertexAttribDivisor(2, 0);
+		glDrawArrays(GL_POINTS, 0, nParticlesThruster);
+		glEndTransformFeedback();
+		glDisable(GL_RASTERIZER_DISCARD);
+
+
+		shaderParticlesRightThruster.setInt("Pass", 2);
+		glm::mat4 modelThrusterParticlesRight = glm::mat4(modelMatrixSpaceshipBody);
+		modelThrusterParticlesRight = glm::translate(modelThrusterParticlesRight, glm::vec3(0.005856, 1.502, -0.550695));
+		modelThrusterParticlesRight = glm::rotate(modelThrusterParticlesRight, glm::radians(90.0f), glm::vec3(0, 0, 1));
+		modelThrusterParticlesRight = glm::rotate(modelThrusterParticlesRight, glm::radians(180.0f), glm::vec3(1, 0, 0));
+		shaderParticlesRightThruster.setMatrix4("model", 1, false, glm::value_ptr(modelThrusterParticlesRight));
+
+		shaderParticlesRightThruster.turnOn();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, textureParticleThrusterID);
+		glDepthMask(GL_FALSE);
+		glBindVertexArray(particleArray[drawBuf]);
+		glVertexAttribDivisor(0, 1);
+		glVertexAttribDivisor(1, 1);
+		glVertexAttribDivisor(2, 1);
+		glDrawArraysInstanced(GL_TRIANGLES, 0, 6, nParticlesThruster);
+		glBindVertexArray(0);
+		glDepthMask(GL_TRUE);
+		drawBuf = 1 - drawBuf;
+		shaderParticlesRightThruster.turnOff();
+
 		}
 
 	}
