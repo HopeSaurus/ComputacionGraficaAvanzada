@@ -94,7 +94,7 @@ Model modelFountain;
 // Model animate instance
 Model spaceshipClassicModelAnimate;
 // Terrain model instance
-Terrain terrain(-1, -1, 200, 16, "../Textures/heightmap.png");
+Terrain terrain(-1, -1, 600, 16, "../Textures/Sheightmap.png");
 
 GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID, textureLandingPadID;
 GLuint textureTerrainBackgroundID, textureTerrainRID, textureTerrainGID, textureTerrainBID, textureTerrainBlendMapID;
@@ -138,6 +138,7 @@ int numberOfTicksL = 0;
 bool accelEnabled = false;
 bool brakeEnabled = false;
 glm::vec3 thrusterAccelDir = glm::vec3(0.0f,0.01f,0.0f);
+bool stopSource1 = false;
 
 bool exitApp = false;
 int lastMousePosX, offsetX = 0;
@@ -191,8 +192,8 @@ GLuint depthMap, depthMapFBO;
  */
 
 // OpenAL Defines
-#define NUM_BUFFERS 3
-#define NUM_SOURCES 3
+#define NUM_BUFFERS 10
+#define NUM_SOURCES 10
 #define NUM_ENVIRONMENTS 1
 // Listener
 ALfloat listenerPos[] = { 0.0, 0.0, 4.0 };
@@ -207,6 +208,12 @@ ALfloat source1Vel[] = { 0.0, 0.0, 0.0 };
 // Source 2
 ALfloat source2Pos[] = { 2.0, 0.0, 0.0 };
 ALfloat source2Vel[] = { 0.0, 0.0, 0.0 };
+// Source 3
+ALfloat source3Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source3Vel[] = { 0.0, 0.0, 0.0 };
+// Source 4
+ALfloat source4Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source4Vel[] = { 0.0, 0.0, 0.0 };
 // Buffers
 ALuint buffer[NUM_BUFFERS];
 ALuint source[NUM_SOURCES];
@@ -233,6 +240,17 @@ bool processInput(bool continueApplication = true);
 void prepareScene();
 void prepareDepthScene();
 void renderScene(bool renderParticles = true);
+bool isPlaying(ALuint source);
+
+
+bool isPlaying(ALuint source){
+
+	ALenum state;
+	alGetSourcei(source, AL_SOURCE_STATE, &state);
+	return(state == AL_PLAYING);
+
+}
+
 
 void initParticleBuffers() {
 	// Generate the buffers
@@ -520,7 +538,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	}
 
 	// Definiendo la textura a utilizar
-	Texture textureCesped("../Textures/cesped.jpg");
+	Texture textureCesped("../Textures/moon.jpg");
 	// Carga el mapa de bits (FIBITMAP es el tipo de dato de la libreria)
 	bitmap = textureCesped.loadImage();
 	// Convertimos el mapa de bits en un arreglo unidimensional de tipo unsigned char
@@ -552,7 +570,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	textureCesped.freeImage(bitmap);
 
 	// Definiendo la textura a utilizar
-	Texture textureTerrainBackground("../Textures/grassy2.png");
+	Texture textureTerrainBackground("../Textures/moon3.jpg");
 	// Carga el mapa de bits (FIBITMAP es el tipo de dato de la libreria)
 	bitmap = textureTerrainBackground.loadImage();
 	// Convertimos el mapa de bits en un arreglo unidimensional de tipo unsigned char
@@ -584,7 +602,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	textureTerrainBackground.freeImage(bitmap);
 
 	// Definiendo la textura a utilizar
-	Texture textureTerrainR("../Textures/mud.png");
+	Texture textureTerrainR("../Textures/spacet.jpg");
 	// Carga el mapa de bits (FIBITMAP es el tipo de dato de la libreria)
 	bitmap = textureTerrainR.loadImage();
 	// Convertimos el mapa de bits en un arreglo unidimensional de tipo unsigned char
@@ -616,7 +634,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	textureTerrainR.freeImage(bitmap);
 
 	// Definiendo la textura a utilizar
-	Texture textureTerrainG("../Textures/grassFlowers.png");
+	Texture textureTerrainG("../Textures/moon5.jpg");
 	// Carga el mapa de bits (FIBITMAP es el tipo de dato de la libreria)
 	bitmap = textureTerrainG.loadImage();
 	// Convertimos el mapa de bits en un arreglo unidimensional de tipo unsigned char
@@ -648,7 +666,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	textureTerrainG.freeImage(bitmap);
 
 	// Definiendo la textura a utilizar
-	Texture textureTerrainB("../Textures/path.png");
+	Texture textureTerrainB("../Textures/path2.png");
 	// Carga el mapa de bits (FIBITMAP es el tipo de dato de la libreria)
 	bitmap = textureTerrainB.loadImage();
 	// Convertimos el mapa de bits en un arreglo unidimensional de tipo unsigned char
@@ -849,11 +867,12 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	// Config source 0
 	// Generate buffers, or else no sound will happen!
 	alGenBuffers(NUM_BUFFERS, buffer);
-	buffer[0] = alutCreateBufferFromFile("../sounds/fountain.wav");
-	buffer[1] = alutCreateBufferFromFile("../sounds/fire.wav");
-	buffer[2] = alutCreateBufferFromFile("../sounds/darth_vader.wav");
+	buffer[0] = alutCreateBufferFromFile("../sounds/accel_long_noisy.wav");
+	buffer[1] = alutCreateBufferFromFile("../sounds/idle_mono.wav");
+	buffer[2] = alutCreateBufferFromFile("../sounds/brake_mono.wav");
+	buffer[3] = alutCreateBufferFromFile("../sounds/turn.wav");
 	int errorAlut = alutGetError();
-	if (errorAlut != ALUT_ERROR_NO_ERROR){
+	if (errorAlut != ALUT_ERROR_NO_ERROR) {
 		printf("- Error open files with alut %d !!\n", errorAlut);
 		exit(2);
 	}
@@ -870,15 +889,15 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 		printf("init - no errors after alGenSources\n");
 	}
 	alSourcef(source[0], AL_PITCH, 1.0f);
-	alSourcef(source[0], AL_GAIN, 3.0f);
+	alSourcef(source[0], AL_GAIN, 1.0f);
 	alSourcefv(source[0], AL_POSITION, source0Pos);
 	alSourcefv(source[0], AL_VELOCITY, source0Vel);
-	alSourcei(source[0], AL_BUFFER, buffer[0]);
-	alSourcei(source[0], AL_LOOPING, AL_TRUE);
+	alSourcei(source[0], AL_BUFFER, buffer[2]);
+	alSourcei(source[0], AL_LOOPING, 0);
 	alSourcef(source[0], AL_MAX_DISTANCE, 2000);
 
 	alSourcef(source[1], AL_PITCH, 1.0f);
-	alSourcef(source[1], AL_GAIN, 3.0f);
+	alSourcef(source[1], AL_GAIN, 1.0f);
 	alSourcefv(source[1], AL_POSITION, source1Pos);
 	alSourcefv(source[1], AL_VELOCITY, source1Vel);
 	alSourcei(source[1], AL_BUFFER, buffer[1]);
@@ -886,12 +905,37 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcef(source[1], AL_MAX_DISTANCE, 2000);
 
 	alSourcef(source[2], AL_PITCH, 1.0f);
-	alSourcef(source[2], AL_GAIN, 0.3f);
+	alSourcef(source[2], AL_GAIN, 1.0f);
 	alSourcefv(source[2], AL_POSITION, source2Pos);
 	alSourcefv(source[2], AL_VELOCITY, source2Vel);
 	alSourcei(source[2], AL_BUFFER, buffer[2]);
-	alSourcei(source[2], AL_LOOPING, AL_TRUE);
-	alSourcef(source[2], AL_MAX_DISTANCE, 500);
+	alSourcei(source[2], AL_LOOPING, 0);
+	alSourcef(source[2], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[3], AL_PITCH, 1.0f);
+	alSourcef(source[3], AL_GAIN, 1.0f);
+	alSourcefv(source[3], AL_POSITION, source3Pos);
+	alSourcefv(source[3], AL_VELOCITY, source3Vel);
+	alSourcei(source[3], AL_BUFFER, buffer[2]);
+	alSourcei(source[3], AL_LOOPING, 0);
+	alSourcef(source[3], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[4], AL_PITCH, 1.0f);
+	alSourcef(source[4], AL_GAIN, 1.0f);
+	alSourcefv(source[4], AL_POSITION, source4Pos);
+	alSourcefv(source[4], AL_VELOCITY, source4Vel);
+	alSourcei(source[4], AL_BUFFER, buffer[2]);
+	alSourcei(source[4], AL_LOOPING, 0);
+	alSourcef(source[4], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[5], AL_PITCH, 1.0f);
+	alSourcef(source[5], AL_GAIN, 0.1f);
+	alSourcefv(source[5], AL_POSITION, source4Pos);
+	alSourcefv(source[5], AL_VELOCITY, source4Vel);
+	alSourcei(source[5], AL_BUFFER, buffer[0]);
+	alSourcei(source[5], AL_LOOPING, 0);
+	alSourcef(source[5], AL_MAX_DISTANCE, 2000);
+
 }
 
 void destroy() {
@@ -1028,6 +1072,12 @@ bool processInput(bool continueApplication) {
 			numberOfTicksL++;
 		}
 		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, -0.2, 0.07));
+
+		if (!isPlaying(source[0])) {
+			alSourcePlay(source[0]);
+		}
+
+
 	}
 	else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS){
 			rightPressed = true;
@@ -1037,15 +1087,24 @@ bool processInput(bool continueApplication) {
 				numberOfTicksR++;
 			}
 			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0.2, 0.07));
+
+
+			if (!isPlaying(source[3])) {
+				alSourcePlay(source[3]);
+			}
+
+
 	}
 	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_RELEASE) {
 
 		rightPressed = false;
+		alSourceStop(source[3]);
 
 	}
 	
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_RELEASE) {
 		leftPressed = false;
+		alSourceStop(source[0]);
 	}
 
 	
@@ -1053,6 +1112,12 @@ bool processInput(bool continueApplication) {
 	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS){
 		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.2, 0, 0));
 		accelEnabled=true;
+		if (!isPlaying(source[5])) {
+			alSourcePlay(source[5]);
+		}
+
+		stopSource1 = true;
+
 	}else if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS){
 		//modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0.2, 0, 0));
 		brakeEnabled = true;
@@ -1060,6 +1125,8 @@ bool processInput(bool continueApplication) {
 	}
 	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
 		accelEnabled = false;
+		alSourceStop(source[5]);
+		stopSource1 = false;
 	}
 	if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE) {
 		brakeEnabled = false;
@@ -1074,6 +1141,11 @@ bool processInput(bool continueApplication) {
 			numberOfTicksU++;
 		}
 		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0,0.1));
+
+		if (!isPlaying(source[4])) {
+			alSourcePlay(source[4]);
+		}
+
 	}
 	else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
 		downPressed = true;
@@ -1083,14 +1155,22 @@ bool processInput(bool continueApplication) {
 			numberOfTicksD++;
 		}
 		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0,0, -0.1));
+
+		if (!isPlaying(source[2])) {
+			alSourcePlay(source[2]);
+		}
+
 	}
 	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_RELEASE) {
 		downPressed = false;
 		heightOfTurn = glm::sin(spaceshipRotZLimit)*9.87/numberOfTicksD* 0.429;
+		alSourceStop(source[2]);
+
 	}
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_RELEASE) {
 		upPressed = false;
 		heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksU * 0.429;
+		alSourceStop(source[4]);
 	}
 
 
@@ -1107,7 +1187,7 @@ void applicationLoop() {
 	float angleTarget;
 
 
-	modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(10.0, 2.0, -17.5));
+	modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(100, 15, -100));
 	modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-90.0f), glm::vec3(1,0,0));
 
 	lastTime = TimeManager::Instance().GetTime();
@@ -1369,25 +1449,6 @@ void applicationLoop() {
 			sphereCollider.render(matrixCollider);
 		}
 
-		// Esto es para ilustrar la transformacion inversa de los coliders
-		/*glm::vec3 cinv = glm::inverse(mayowCollider.u) * glm::vec4(rockCollider.c, 1.0);
-		glm::mat4 invColliderS = glm::mat4(1.0);
-		invColliderS = glm::translate(invColliderS, cinv);
-		invColliderS =  invColliderS * glm::mat4(mayowCollider.u);
-		invColliderS = glm::scale(invColliderS, glm::vec3(rockCollider.ratio * 2.0, rockCollider.ratio * 2.0, rockCollider.ratio * 2.0));
-		sphereCollider.setColor(glm::vec4(1.0, 1.0, 0.0, 1.0));
-		sphereCollider.enableWireMode();
-		sphereCollider.render(invColliderS);
-		glm::vec3 cinv2 = glm::inverse(mayowCollider.u) * glm::vec4(mayowCollider.c, 1.0);
-		glm::mat4 invColliderB = glm::mat4(1.0);
-		invColliderB = glm::translate(invColliderB, cinv2);
-		invColliderB = glm::scale(invColliderB, mayowCollider.e * 2.0f);
-		boxCollider.setColor(glm::vec4(1.0, 1.0, 0.0, 1.0));
-		boxCollider.enableWireMode();
-		boxCollider.render(invColliderB);
-		// Se regresa el color blanco
-		sphereCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
-		boxCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));*/
 
 		/*******************************************
 		 * Test Colisions
@@ -1527,25 +1588,37 @@ void applicationLoop() {
 		 * Open AL sound data
 		 */
 
-		/*
-		source0Pos[0] = modelMatrixFountain[3].x;
-		source0Pos[1] = modelMatrixFountain[3].y;
-		source0Pos[2] = modelMatrixFountain[3].z;
+		
+		source0Pos[0] = modelMatrixSpaceship[3].x;
+		source0Pos[1] = modelMatrixSpaceship[3].y;
+		source0Pos[2] = modelMatrixSpaceship[3].z;
 		alSourcefv(source[0], AL_POSITION, source0Pos);
 
-		source2Pos[0] = modelMatrixDart[3].x;
-		source2Pos[1] = modelMatrixDart[3].y;
-		source2Pos[2] = modelMatrixDart[3].z;
+		source2Pos[0] = modelMatrixSpaceship[3].x;
+		source2Pos[1] = modelMatrixSpaceship[3].y;
+		source2Pos[2] = modelMatrixSpaceship[3].z;
 		alSourcefv(source[2], AL_POSITION, source2Pos);
 
+		source3Pos[0] = modelMatrixSpaceship[3].x;
+		source3Pos[1] = modelMatrixSpaceship[3].y;
+		source3Pos[2] = modelMatrixSpaceship[3].z;
+		alSourcefv(source[3], AL_POSITION, source3Pos);
+
+		source4Pos[0] = modelMatrixSpaceship[3].x;
+		source4Pos[1] = modelMatrixSpaceship[3].y;
+		source4Pos[2] = modelMatrixSpaceship[3].z;
+		alSourcefv(source[4], AL_POSITION, source4Pos);
+
+		alSourcefv(source[5], AL_POSITION, source4Pos);
+
 		// Listener for the Thris person camera
-		listenerPos[0] = modelMatrixMayow[3].x;
-		listenerPos[1] = modelMatrixMayow[3].y;
-		listenerPos[2] = modelMatrixMayow[3].z;
+		listenerPos[0] = modelMatrixSpaceship[3].x;
+		listenerPos[1] = modelMatrixSpaceship[3].y;
+		listenerPos[2] = modelMatrixSpaceship[3].z;
 		alListenerfv(AL_POSITION, listenerPos);
 
-		glm::vec3 upModel = glm::normalize(modelMatrixMayow[1]);
-		glm::vec3 frontModel = glm::normalize(modelMatrixMayow[2]);
+		glm::vec3 upModel = glm::normalize(modelMatrixSpaceship[1]);
+		glm::vec3 frontModel = glm::normalize(modelMatrixSpaceship[2]);
 
 		listenerOri[0] = frontModel.x;
 		listenerOri[1] = frontModel.y;
@@ -1553,8 +1626,6 @@ void applicationLoop() {
 		listenerOri[3] = upModel.x;
 		listenerOri[4] = upModel.y;
 		listenerOri[5] = upModel.z;
-		*/
-
 
 		// Listener for the First person camera
 		/*listenerPos[0] = camera->getPosition().x;
@@ -1569,12 +1640,14 @@ void applicationLoop() {
 		listenerOri[5] = camera->getUp().z;*/
 		alListenerfv(AL_ORIENTATION, listenerOri);
 
-		for(unsigned int i = 0; i < sourcesPlay.size(); i++){
-			if(sourcesPlay[i]){
-				sourcesPlay[i] = false;
-				alSourcePlay(source[i]);
+		if (!stopSource1) {
+			if (!isPlaying(source[1])) {
+				alSourcePlay(source[1]);
 			}
 		}
+		else alSourceStop(source[1]);
+
+		
 	}
 }
 
@@ -1724,8 +1797,10 @@ void renderScene(bool renderParticles){
 			currTimeParticlesAnimationThruster = TimeManager::Instance().GetTime();
 
 			shaderParticlesLeftThruster.setInt("Pass", 1);
-			if (accelEnabled) {
 
+			//Thruster particles animation affected by the velocity of the ship
+
+			if (accelEnabled) {
 
 				if (leftPressed) {
 					shaderParticlesRightThruster.setVectorFloat3("Accel", glm::value_ptr(glm::vec3(100, 0, 0)));
@@ -1837,9 +1912,10 @@ void renderScene(bool renderParticles){
 			/****************************+
 			 * Open AL sound data
 			 */
-			source1Pos[0] = modelThrusterParticles[3].x;
-			source1Pos[1] = modelThrusterParticles[3].y;
-			source1Pos[2] = modelThrusterParticles[3].z;
+
+			source1Pos[0] = modelMatrixSpaceship[3].x;
+			source1Pos[1] = modelMatrixSpaceship[3].y;
+			source1Pos[2] = modelMatrixSpaceship[3].z;
 			alSourcefv(source[1], AL_POSITION, source1Pos);
 
 			/**********
