@@ -76,9 +76,13 @@ Shader shaderParticlesRightThruster;
 Shader shaderViewDepth;
 //Shader para dibujar el buffer de profunidad
 Shader shaderDepth;
+//Shader para el menú
+Shader shaderMenu;
+
 
 std::shared_ptr<Camera> camera(new ThirdPersonCamera());
-float distanceFromTarget = 7;
+std::shared_ptr<FirstPersonCamera> cameraMenu(new FirstPersonCamera());
+float distanceFromTarget = 10;
 
 Sphere skyboxSphere(20, 20);
 Box boxCollider;
@@ -91,8 +95,22 @@ ShadowBox* shadowBox;
 // Models complex instances
 Model modelCrosshair;
 Model modelFountain;
+Model modelStart;
+Model modelChange;
+Model classicSpaceshipSelection;
+Model enemySpaceshipSelection;
+Model modelHudFullHealth;
+Model modelHudFullHealth2;
+Model modelHudHalfHealth;
+Model modelHudThirdHealth;
+Model modelHudThirdHealth2;
+Model modelHudNoHealth;
+Model modelAsteroid;
+Model modelHit;
+
 // Model animate instance
 Model spaceshipClassicModelAnimate;
+Model spaceshipPurpleModelAnimate;
 // Terrain model instance
 Terrain terrain(-1, -1, 600, 16, "../Textures/Sheightmap.png");
 
@@ -140,6 +158,27 @@ bool brakeEnabled = false;
 glm::vec3 thrusterAccelDir = glm::vec3(0.0f,0.01f,0.0f);
 bool stopSource1 = false;
 
+//menu options
+bool startMenu = true;
+bool selectShip = false;
+bool mainGame = false;
+bool option = false;
+bool stopMenuMusic = false;
+short int shipSelect=0;
+float menuRotation=1.0f;
+bool enterPressed = 0;
+
+
+//HUD & gameplay variables
+double deltaCounter = 0;
+int secondsCounter = 0;
+int animationCounter = 0;
+int shipHealth=3;
+bool hit = false;
+int currentHitMoment = 0;
+int lastHitMoment = 0;
+bool dontPlay = false;
+
 bool exitApp = false;
 int lastMousePosX, offsetX = 0;
 int lastMousePosY, offsetY = 0;
@@ -147,6 +186,9 @@ int lastMousePosY, offsetY = 0;
 // Model matrix definitions
 glm::mat4 modelMatrixSpaceship = glm::mat4(1.0f);
 glm::mat4 modelMatrixCrosshair = glm::mat4(1.0f);
+glm::mat4 modelMatrixMenu = glm::mat4(1.0f);
+glm::mat4 modelMatrixHUD = glm::mat4(1.0f);
+
 
 int animationIndex = 1;
 
@@ -157,8 +199,73 @@ glm::vec3 spaceshipDirection = glm::vec3(-1.0,0.0,0.0);
 std::map<std::string, glm::vec3> blendingUnsorted = {
 		{"fountain", glm::vec3(5.0, 0.0, -40.0)},
 		{"Thruster", glm::vec3(0.0, 0.0, 7.0)},
-		{"ThrusterR", glm::vec3(0.0, 0.0, 10.0)}
+		{"ThrusterR", glm::vec3(0.0, 0.0, 10.0)},
+		{"HUD",glm::vec3(90,15,-100)}
 };
+
+//Created with python to ease random calls
+
+std::vector<glm::vec3> asteroidsPos = {
+glm::vec3(53.09529829415588,5.411253517807992,-51.55790824756765),
+glm::vec3(51.788226581943704,9.242076361200123,-70.4430924859052),
+glm::vec3(50.58657875058623,6.540954115076996,-99.44270686143918),
+glm::vec3(54.34446922457413,13.685024921754957,-113.42951206438477),
+glm::vec3(53.709743555247016,7.64975194672145,-131.71414377407072),
+glm::vec3(56.11172047374059,7.450516952922591,-158.84932115594577),
+glm::vec3(0.05150201041274727,7.13763291001267,-57.417965919174044),
+glm::vec3(1.2894250070164475,10.259038460874978,-78.27454493143136),
+glm::vec3(7.79168854970311,6.139354751628952,-97.74076783422554),
+glm::vec3(3.0092744319199483,6.6484101138902965,-119.46927745803224),
+glm::vec3(6.675004706708805,10.363221540368837,-135.87392527055272),
+glm::vec3(3.215598480680171,5.162556847413002,-154.7280355245493),
+glm::vec3(-49.357769660779525,11.356163493508598,-50.58586504610972),
+glm::vec3(-48.47326178758014,5.514005330231767,-78.49158294983741),
+glm::vec3(-46.04413589077008,14.386935918577247,-90.95440255949615),
+glm::vec3(-48.75748004222494,6.464646539867202,-115.05012704938538),
+glm::vec3(-42.67979060868447,6.539823215079315,-133.65472380980702),
+glm::vec3(-44.08626545769671,13.417762342148876,-159.00067959461379),
+glm::vec3(-96.09150096738796,12.826727690286724,-57.44491609191819),
+glm::vec3(-92.74565427058741,13.626937353394782,-73.04368684876924),
+glm::vec3(-97.32734017650802,12.234104895620124,-92.95093689001665),
+glm::vec3(-98.33573507792741,9.187046555401569,-111.26079598695603),
+glm::vec3(-99.26169318557389,14.698165885286484,-137.30556793451075),
+glm::vec3(-94.39762864838589,10.089820567453415,-155.30229424823997),
+glm::vec3(-147.91701995813418,10.384378872486526,-53.19928643725163),
+glm::vec3(-145.6592316219445,10.41372560537642,-79.77755353015874),
+glm::vec3(-148.91692993085138,10.518246116730271,-97.65952387337094),
+glm::vec3(-149.51044276586305,14.03090231308671,-118.89236230909302),
+glm::vec3(-143.74227633000638,5.740449899841245,-138.10380736917608),
+glm::vec3(-141.61899398069932,13.55028898128113,-155.23900125296112),
+glm::vec3(-193.7669519729889,14.749439970152844,-53.01520710227659),
+glm::vec3(-191.82591904717953,5.94158008760794,-78.91459180310655),
+glm::vec3(-197.43211256526104,7.981750436096019,-92.29453614974088),
+glm::vec3(-197.70716537560645,13.362448486537026,-118.34048241132149),
+glm::vec3(-196.234362537582,5.303638340137281,-132.58349219755095),
+glm::vec3(-196.22780088490327,12.60622143328656,-150.76544468073266),
+glm::vec3(-241.88655039142674,7.5083340880368805,-55.733720633437215),
+glm::vec3(-249.38054360083032,7.120283498447298,-74.76754773328165),
+glm::vec3(-242.71829939080067,8.068183052529786,-95.24807008351053),
+glm::vec3(-247.27228535324505,12.95802633438036,-111.79227593100185),
+glm::vec3(-248.14084546595876,10.33403475243654,-130.1422201206579),
+glm::vec3(-241.46371632011665,6.4574415247951595,-157.19836146880957),
+glm::vec3(-290.54235088849487,12.871316534012244,-57.237432751748074),
+glm::vec3(-293.9639811224496,14.654583470547054,-79.81490497493215),
+glm::vec3(-294.6442732927907,8.24042369247977,-97.976251531287),
+glm::vec3(-298.82582486322235,11.471136586043738,-118.40395389405899),
+glm::vec3(-292.0310476451893,8.796809051911854,-134.0457794078908),
+glm::vec3(-294.67534099999506,14.4830871862161,-152.91671929283618),
+glm::vec3(-344.53483137071964,10.482116317746744,-55.5498238051141),
+glm::vec3(-345.6222120050084,8.42080981388416,-71.55520318706806),
+glm::vec3(-344.0366036418258,13.515365341386698,-93.66090802715182),
+glm::vec3(-346.8829443938836,10.776589868155188,-111.93252100342072),
+glm::vec3(-340.42600289215875,10.709372297502423,-130.15595288816843),
+glm::vec3(-346.9587555053882,13.289183287796524,-155.1233347737144),
+glm::vec3(-397.98302021287964,9.805388523639005,-54.48663785416705),
+glm::vec3(-399.69393457938446,10.803843611648187,-76.74764971022165),
+glm::vec3(-399.340731252012,8.951651937975571,-90.09095012984213),
+glm::vec3(-398.41322766008955,12.668830677884374,-116.38441971901568),
+glm::vec3(-399.39597619163874,12.406387097525839,-139.15802666801756),
+glm::vec3(-399.4303999392969,6.180341845149878,-155.33482057677583) };
 
 double deltaTime;
 double currTime, lastTime;
@@ -192,8 +299,8 @@ GLuint depthMap, depthMapFBO;
  */
 
 // OpenAL Defines
-#define NUM_BUFFERS 10
-#define NUM_SOURCES 10
+#define NUM_BUFFERS 20
+#define NUM_SOURCES 20
 #define NUM_ENVIRONMENTS 1
 // Listener
 ALfloat listenerPos[] = { 0.0, 0.0, 4.0 };
@@ -214,6 +321,19 @@ ALfloat source3Vel[] = { 0.0, 0.0, 0.0 };
 // Source 4
 ALfloat source4Pos[] = { 2.0, 0.0, 0.0 };
 ALfloat source4Vel[] = { 0.0, 0.0, 0.0 };
+//Source 5
+ALfloat source5Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source5Vel[] = { 0.0, 0.0, 0.0 };
+//Source 6
+ALfloat source6Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source6Vel[] = { 0.0, 0.0, 0.0 };
+//Source 6
+ALfloat source7Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source7Vel[] = { 0.0, 0.0, 0.0 };
+//Source 6
+ALfloat source8Pos[] = { 2.0, 0.0, 0.0 };
+ALfloat source8Vel[] = { 0.0, 0.0, 0.0 };
+
 // Buffers
 ALuint buffer[NUM_BUFFERS];
 ALuint source[NUM_SOURCES];
@@ -241,7 +361,26 @@ void prepareScene();
 void prepareDepthScene();
 void renderScene(bool renderParticles = true);
 bool isPlaying(ALuint source);
+void fillRandomPos(std::vector<glm::vec3> pos , int numEleX,int numEleZ);
 
+
+void fillRandomPos(std::vector<glm::vec3> pos, int numEleX, int numEleZ) {
+
+	int incX = 0;  
+	int incZ = 0;
+
+	for (int i = 0; i++; i < numEleX) {
+		incX += 50;
+		for (int j = 0; j++; j < numEleZ) {
+			pos.push_back(glm::vec3(rand() % 10 - 100 + incX, rand() % 20 + 5, rand()%10 + 40 + incZ));
+			incZ += 20;
+		}
+		incZ = 0;
+	}
+
+	
+
+}
 
 bool isPlaying(ALuint source){
 
@@ -250,7 +389,6 @@ bool isPlaying(ALuint source){
 	return(state == AL_PLAYING);
 
 }
-
 
 void initParticleBuffers() {
 	// Generate the buffers
@@ -468,10 +606,13 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	shaderParticlesRightThruster.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
 	shaderViewDepth.initialize("../Shaders/texturizado.vs", "../Shaders/texturizado_depth_view.fs");
 	shaderDepth.initialize("../Shaders/shadow_mapping_depth.vs", "../Shaders/shadow_mapping_depth.fs");
-
+	shaderMenu.initialize("../Shaders/iluminacion_texture_res.vs", "../Shaders/multipleLights.fs");
 
 
 	// Inicializacion de los objetos.
+
+	fillRandomPos(asteroidsPos, 12, 6);
+
 	skyboxSphere.init();
 	skyboxSphere.setShader(&shaderSkybox);
 	skyboxSphere.setScale(glm::vec3(100.0f, 100.0f, 100.0f));
@@ -498,12 +639,58 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	spaceshipClassicModelAnimate.loadModel("../models/spaceship/nave_ver3.fbx");
 	spaceshipClassicModelAnimate.setShader(&shaderMulLighting);
 
+	spaceshipPurpleModelAnimate.loadModel("../models/spaceship/nave_ver3_py.fbx");
+	spaceshipPurpleModelAnimate.setShader(&shaderMenu);
+
+
 	//spaceship Crosshair 
 	
 	modelCrosshair.loadModel("../models/crosshair/crosshair.fbx");
 	modelCrosshair.setShader(&shaderMulLighting);
 
+	//start  Menu
+	modelStart.loadModel("../models/menu/start.fbx");
+	modelStart.setShader(&shaderMenu);
+
+	modelChange.loadModel("../models/menu/select.fbx");
+	modelChange.setShader(&shaderMenu);
+
+
+	//spaceship selection menu
+	classicSpaceshipSelection.loadModel("../models/menu/classicShipSelection.fbx");
+	classicSpaceshipSelection.setShader(&shaderMenu);
+
+	enemySpaceshipSelection.loadModel("../models/menu/enemyShipSelection.fbx");
+	enemySpaceshipSelection.setShader(&shaderMenu);
+
+
+	//HUD
+	modelHudFullHealth.loadModel("../models/HUD/fullHealth.fbx");
+	modelHudFullHealth.setShader(&shaderMulLighting);
+	modelHudFullHealth2.loadModel("../models/HUD/fullHealth2.fbx");
+	modelHudFullHealth2.setShader(&shaderMulLighting);
+	modelHudHalfHealth.loadModel("../models/HUD/halfHealth.fbx");
+	modelHudHalfHealth.setShader(&shaderMulLighting);
+	modelHudThirdHealth.loadModel("../models/HUD/thirdHealth.fbx");
+	modelHudThirdHealth.setShader(&shaderMulLighting);
+	modelHudThirdHealth2.loadModel("../models/HUD/thirdHealth2.fbx");
+	modelHudThirdHealth2.setShader(&shaderMulLighting);
+	modelHudNoHealth.loadModel("../models/HUD/noHealth.fbx");
+	modelHudNoHealth.setShader(&shaderMulLighting);
+
+	modelHit.loadModel("../models/HUD/hit.fbx");
+	modelHit.setShader(&shaderMulLighting);
+
+
+	//asteroid
+
+	modelAsteroid.loadModel("../models/asteroid/asteroid.fbx");
+	modelAsteroid.setShader(&shaderMulLighting);
+
+
 	camera->setPosition(glm::vec3(0.0, 0.0, 0.0));
+	cameraMenu->setPosition(glm::vec3(0.0, 0.0, 0.0));
+	cameraMenu->setFront(glm::vec3(0.0, 0.0, 0.5));
 	camera->setFront(glm::vec3(0.0,-1.0,0.0));
 	camera->setDistanceFromTarget(distanceFromTarget);
 	camera->setSensitivity(1.0);
@@ -871,6 +1058,12 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	buffer[1] = alutCreateBufferFromFile("../sounds/idle_mono.wav");
 	buffer[2] = alutCreateBufferFromFile("../sounds/brake_mono.wav");
 	buffer[3] = alutCreateBufferFromFile("../sounds/turn.wav");
+	buffer[4] = alutCreateBufferFromFile("../sounds/menu_change.wav");
+	buffer[5] = alutCreateBufferFromFile("../sounds/menu_select.wav");
+	buffer[6] = alutCreateBufferFromFile("../sounds/futureBase.wav");
+	buffer[7] = alutCreateBufferFromFile("../sounds/Lichtenberg_Figures.wav");
+	buffer[8] = alutCreateBufferFromFile("../sounds/hit.wav");
+
 	int errorAlut = alutGetError();
 	if (errorAlut != ALUT_ERROR_NO_ERROR) {
 		printf("- Error open files with alut %d !!\n", errorAlut);
@@ -889,7 +1082,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 		printf("init - no errors after alGenSources\n");
 	}
 	alSourcef(source[0], AL_PITCH, 1.0f);
-	alSourcef(source[0], AL_GAIN, 1.0f);
+	alSourcef(source[0], AL_GAIN, 5.0f);
 	alSourcefv(source[0], AL_POSITION, source0Pos);
 	alSourcefv(source[0], AL_VELOCITY, source0Vel);
 	alSourcei(source[0], AL_BUFFER, buffer[2]);
@@ -897,7 +1090,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcef(source[0], AL_MAX_DISTANCE, 2000);
 
 	alSourcef(source[1], AL_PITCH, 1.0f);
-	alSourcef(source[1], AL_GAIN, 1.0f);
+	alSourcef(source[1], AL_GAIN, 5.0f);
 	alSourcefv(source[1], AL_POSITION, source1Pos);
 	alSourcefv(source[1], AL_VELOCITY, source1Vel);
 	alSourcei(source[1], AL_BUFFER, buffer[1]);
@@ -905,7 +1098,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcef(source[1], AL_MAX_DISTANCE, 2000);
 
 	alSourcef(source[2], AL_PITCH, 1.0f);
-	alSourcef(source[2], AL_GAIN, 1.0f);
+	alSourcef(source[2], AL_GAIN, 5.0f);
 	alSourcefv(source[2], AL_POSITION, source2Pos);
 	alSourcefv(source[2], AL_VELOCITY, source2Vel);
 	alSourcei(source[2], AL_BUFFER, buffer[2]);
@@ -913,7 +1106,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcef(source[2], AL_MAX_DISTANCE, 2000);
 
 	alSourcef(source[3], AL_PITCH, 1.0f);
-	alSourcef(source[3], AL_GAIN, 1.0f);
+	alSourcef(source[3], AL_GAIN, 5.0f);
 	alSourcefv(source[3], AL_POSITION, source3Pos);
 	alSourcefv(source[3], AL_VELOCITY, source3Vel);
 	alSourcei(source[3], AL_BUFFER, buffer[2]);
@@ -921,7 +1114,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcef(source[3], AL_MAX_DISTANCE, 2000);
 
 	alSourcef(source[4], AL_PITCH, 1.0f);
-	alSourcef(source[4], AL_GAIN, 1.0f);
+	alSourcef(source[4], AL_GAIN, 5.0f);
 	alSourcefv(source[4], AL_POSITION, source4Pos);
 	alSourcefv(source[4], AL_VELOCITY, source4Vel);
 	alSourcei(source[4], AL_BUFFER, buffer[2]);
@@ -935,6 +1128,46 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcei(source[5], AL_BUFFER, buffer[0]);
 	alSourcei(source[5], AL_LOOPING, 0);
 	alSourcef(source[5], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[6], AL_PITCH, 1.0f);
+	alSourcef(source[6], AL_GAIN, 1.0f);
+	alSourcefv(source[6], AL_POSITION, source5Pos);
+	alSourcefv(source[6], AL_VELOCITY, source5Vel);
+	alSourcei(source[6], AL_BUFFER, buffer[4]);
+	alSourcei(source[6], AL_LOOPING, 0);
+	alSourcef(source[6], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[7], AL_PITCH, 1.0f);
+	alSourcef(source[7], AL_GAIN, 1.0f);
+	alSourcefv(source[7], AL_POSITION, source5Pos);
+	alSourcefv(source[7], AL_VELOCITY, source5Vel);
+	alSourcei(source[7], AL_BUFFER, buffer[5]);
+	alSourcei(source[7], AL_LOOPING, 0);
+	alSourcef(source[7], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[8], AL_PITCH, 1.0f);
+	alSourcef(source[8], AL_GAIN, 1.0f);
+	alSourcefv(source[8], AL_POSITION, source5Pos);
+	alSourcefv(source[8], AL_VELOCITY, source5Vel);
+	alSourcei(source[8], AL_BUFFER, buffer[6]);
+	alSourcei(source[8], AL_LOOPING, 1);
+	alSourcef(source[8], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[9], AL_PITCH, 1.0f);
+	alSourcef(source[9], AL_GAIN, 1.0f);
+	alSourcefv(source[9], AL_POSITION, source4Pos);
+	alSourcefv(source[9], AL_VELOCITY, source4Vel);
+	alSourcei(source[9], AL_BUFFER, buffer[7]);
+	alSourcei(source[9], AL_LOOPING, 1);
+	alSourcef(source[9], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[10], AL_PITCH, 1.0f);
+	alSourcef(source[10], AL_GAIN, 1.0f);
+	alSourcefv(source[10], AL_POSITION, source4Pos);
+	alSourcefv(source[10], AL_VELOCITY, source4Vel);
+	alSourcei(source[10], AL_BUFFER, buffer[8]);
+	alSourcei(source[10], AL_LOOPING, 0);
+	alSourcef(source[10], AL_MAX_DISTANCE, 2000);
 
 }
 
@@ -964,8 +1197,22 @@ void destroy() {
 
 	// Custom objects Delete
 	modelCrosshair.destroy();
+	modelChange.destroy();
+	modelStart.destroy();
+	classicSpaceshipSelection.destroy();
+	enemySpaceshipSelection.destroy();
+	modelHudFullHealth.destroy();
+	modelHudFullHealth2.destroy();
+	modelHudHalfHealth.destroy();
+	modelHudThirdHealth.destroy();
+	modelHudThirdHealth2.destroy();
+	modelHudNoHealth.destroy();
+	modelAsteroid.destroy();
+	modelHit.destroy();
+
 	// Custom objects animate
 	spaceshipClassicModelAnimate.destroy();
+	spaceshipPurpleModelAnimate.destroy();
 
 	// Textures Delete
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -1018,10 +1265,12 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 }
 
 void mouseCallback(GLFWwindow *window, double xpos, double ypos) {
+	/*
 	offsetX = xpos - lastMousePosX;
 	offsetY = ypos - lastMousePosY;
 	lastMousePosX = xpos;
 	lastMousePosY = ypos;
+	*/
 }
 
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset){
@@ -1052,34 +1301,36 @@ bool processInput(bool continueApplication) {
 		return false;
 	}
 
-	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-		camera->mouseMoveCamera(offsetX, 0.0, deltaTime);
-		spaceshipDirection = camera->getFront();
-		std::cout << "camera front: (" << spaceshipDirection.x <<","<< spaceshipDirection.y <<","<< spaceshipDirection.z<<")" << std::endl;
-	}
-	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
-		camera->mouseMoveCamera(0.0, offsetY, deltaTime);
-		std::cout << "camera pitch: " << camera->getPitch() << std::endl;
-	}
-	offsetX = 0;
-	offsetY = 0;
+	if (mainGame) {
 
-	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-		leftPressed = true;
-		if (numberOfTicksL < 20) {
-			modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
-			spaceshipRotXLimit += spaceshipRotX;
-			numberOfTicksL++;
+		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+			camera->mouseMoveCamera(offsetX, 0.0, deltaTime);
+			spaceshipDirection = camera->getFront();
+			std::cout << "camera front: (" << spaceshipDirection.x << "," << spaceshipDirection.y << "," << spaceshipDirection.z << ")" << std::endl;
 		}
-		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, -0.2, 0.07));
-
-		if (!isPlaying(source[0])) {
-			alSourcePlay(source[0]);
+		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+			camera->mouseMoveCamera(0.0, offsetY, deltaTime);
+			std::cout << "camera pitch: " << camera->getPitch() << std::endl;
 		}
+		offsetX = 0;
+		offsetY = 0;
+
+		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+			leftPressed = true;
+			if (numberOfTicksL < 20) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
+				spaceshipRotXLimit += spaceshipRotX;
+				numberOfTicksL++;
+			}
+			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, -0.2, 0.07));
+
+			if (!isPlaying(source[0])) {
+				alSourcePlay(source[0]);
+			}
 
 
-	}
-	else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS){
+		}
+		else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
 			rightPressed = true;
 			if (numberOfTicksR < 20) {
 				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotX), glm::vec3(1, 0, 0));
@@ -1094,561 +1345,854 @@ bool processInput(bool continueApplication) {
 			}
 
 
-	}
-	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_RELEASE) {
+		}
+		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_RELEASE) {
 
-		rightPressed = false;
-		alSourceStop(source[3]);
+			rightPressed = false;
+			alSourceStop(source[3]);
 
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_RELEASE) {
+			leftPressed = false;
+			alSourceStop(source[0]);
+		}
+
+
+
+		if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.2, 0, 0));
+			accelEnabled = true;
+			if (!isPlaying(source[5])) {
+				alSourcePlay(source[5]);
+			}
+			std::cout << "ship Position: [ " << modelMatrixSpaceship[3].x << "," << modelMatrixSpaceship[3].y << "," << modelMatrixSpaceship[3].z << " ]" << std::endl;
+			//stopSource1 = true;
+
+		}
+		else if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
+			brakeEnabled = true;
+
+		}
+		if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
+			accelEnabled = false;
+			alSourceStop(source[5]);
+			stopSource1 = false;
+			
+		}
+		if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE) {
+			brakeEnabled = false;
+		}
+
+
+		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+			upPressed = true;
+			if (numberOfTicksU < 20) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
+				spaceshipRotZLimit += spaceshipRotZ;
+				numberOfTicksU++;
+			}
+			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, 0.1));
+
+			if (!isPlaying(source[4])) {
+				alSourcePlay(source[4]);
+			}
+
+		}
+		else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+			downPressed = true;
+			if (numberOfTicksD < 20) {
+				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
+				spaceshipRotZLimit -= spaceshipRotZ;
+				numberOfTicksD++;
+			}
+			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, -0.1));
+
+			if (!isPlaying(source[2])) {
+				alSourcePlay(source[2]);
+			}
+
+		}
+		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_RELEASE) {
+			downPressed = false;
+			heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksD * 0.429;
+			alSourceStop(source[2]);
+
+		}
+		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_RELEASE) {
+			upPressed = false;
+			heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksU * 0.429;
+			alSourceStop(source[4]);
+		}
+
+	
 	}
 	
-	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_RELEASE) {
-		leftPressed = false;
-		alSourceStop(source[0]);
+	else if (startMenu) {
+
+		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+
+			if (option) {
+				option = false;
+			}
+
+			alSourcePlay(source[6]);
+
+		}
+		else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+
+			if (!option) {
+				option = true;
+			}
+
+			alSourcePlay(source[6]);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
+
+			enterPressed = true;
+
+			if (option) {
+
+				startMenu = false;
+				mainGame = false;
+				selectShip = true;
+				alSourcePlay(source[7]);
+			}
+			else {
+
+				startMenu = false;
+				mainGame = true;
+				selectShip = false;
+				alSourcePlay(source[7]);
+			}
+
+		}
 	}
+
+	if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_RELEASE) {
+		enterPressed = false;
+	}
+
+		if (selectShip && !enterPressed) {
+		
+
+			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+
+				std::cout << "izq" << std::endl;
+				if (shipSelect==0) {
+
+				}
+				else {
+					alSourcePlay(source[6]);
+					shipSelect--;
+				}
+			}
+			else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+				std::cout << "der" << std::endl;
+				if (shipSelect == 0) {
+					alSourcePlay(source[6]);
+					shipSelect++;
+				}
+				else {
+
+
+				}
+
+			}
+
+			if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
+
+					startMenu = false;
+					mainGame = true;
+					selectShip = false;
+					alSourcePlay(source[7]);
+
+			}
+		}
 
 	
-	
-	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS){
-		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.2, 0, 0));
-		accelEnabled=true;
-		if (!isPlaying(source[5])) {
-			alSourcePlay(source[5]);
-		}
-
-		stopSource1 = true;
-
-	}else if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS){
-		//modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0.2, 0, 0));
-		brakeEnabled = true;
-
-	}
-	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
-		accelEnabled = false;
-		alSourceStop(source[5]);
-		stopSource1 = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE) {
-		brakeEnabled = false;
-	}
-
-
-	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-		upPressed = true;
-		if (numberOfTicksU < 20) {
-			modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
-			spaceshipRotZLimit += spaceshipRotZ;
-			numberOfTicksU++;
-		}
-		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0,0.1));
-
-		if (!isPlaying(source[4])) {
-			alSourcePlay(source[4]);
-		}
-
-	}
-	else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-		downPressed = true;
-		if (numberOfTicksD < 20) {
-			modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
-			spaceshipRotZLimit -= spaceshipRotZ;
-			numberOfTicksD++;
-		}
-		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0,0, -0.1));
-
-		if (!isPlaying(source[2])) {
-			alSourcePlay(source[2]);
-		}
-
-	}
-	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_RELEASE) {
-		downPressed = false;
-		heightOfTurn = glm::sin(spaceshipRotZLimit)*9.87/numberOfTicksD* 0.429;
-		alSourceStop(source[2]);
-
-	}
-	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_RELEASE) {
-		upPressed = false;
-		heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksU * 0.429;
-		alSourceStop(source[4]);
-	}
-
-
 	glfwPollEvents();
 	return continueApplication;
 }
 
 void applicationLoop() {
-	bool psi = true;
-
-	glm::mat4 view;
-	glm::vec3 axis;
-	glm::vec3 target;
-	float angleTarget;
-
-
-	modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(100, 15, -100));
-	modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-90.0f), glm::vec3(1,0,0));
-
-	lastTime = TimeManager::Instance().GetTime();
-
-	// Time for the particles animation
-	currTimeParticlesAnimation = lastTime;
-	lastTimeParticlesAnimation = lastTime;
-
-	currTimeParticlesAnimationThruster = lastTime;
-	lastTimeParticlesAnimationThruster = lastTime;
-
-	glm::vec3 lightPos = glm::vec3(10.0, 10.0, 0.0);
-
-	shadowBox = new ShadowBox(-lightPos, camera.get(),15.0f,0.1,45.0f);
-
-	while (psi) {
-		currTime = TimeManager::Instance().GetTime();
-		if(currTime - lastTime < 0.016666667){
-			glfwPollEvents();
-			continue;
-		}
-		lastTime = currTime;
-		TimeManager::Instance().CalculateFrameRate(true);
-		deltaTime = TimeManager::Instance().DeltaTime;
-		psi = processInput(true);
-
-		std::map<std::string, bool> collisionDetection;
-
-		// Variables donde se guardan las matrices de cada articulacion por 1 frame
-
-		glm::mat4 projection = glm::perspective(glm::radians(45.0f),
-				(float) screenWidth / (float) screenHeight, 0.1f, 100.0f);
-
-
-			axis = glm::axis(glm::quat_cast(modelMatrixSpaceship));
-			angleTarget = glm::angle(glm::quat_cast(modelMatrixSpaceship));
-			target = modelMatrixSpaceship[3];
-
-
-		if(std::isnan(angleTarget))
-			angleTarget = 0.0;
-		if(axis.y < 0)
-			angleTarget = -angleTarget;
-
-
-		camera->setCameraTarget(target);
-		camera->setAngleTarget(glm::radians(-90.0f)); //this sets camera front :::: important
-		camera->setPitch(0.230067f);
-		camera->updateCamera();
-		view = camera->getViewMatrix();
 
 
 
-		shadowBox->update(screenWidth, screenHeight);
+		bool psi = true;
 
-		// Projection light shadow mapping
-		/*glm::mat4 lightProjection, lightView;
-		glm::mat4 lightSpaceMatrix;
-		float near_plane = 0.1f, far_plane = 20.0f;
-		//lightProjection = glm::perspective(glm::radians(45.0f), (GLfloat)SHADOW_WIDTH / (GLfloat)SHADOW_HEIGHT, near_plane, far_plane); // note that if you use a perspective projection matrix you'll have to change the light position as the current light position isn't enough to reflect the whole scene
-		lightProjection = glm::ortho(-25.0f, 25.0f, -25.0f, 25.0f, near_plane, far_plane);
-		lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0)); */
-
-		glm::mat4 lightProjection = glm::mat4(1.0), lightView = glm::mat4(1.0);
-		glm::mat4 lightSpaceMatrix;
-		lightProjection[0][0] = 2.0 / shadowBox->getWidth();
-		lightProjection[1][1] = 2.0 / shadowBox->getHeight();
-		lightProjection[2][2] = -2.0 / shadowBox->getLength();
-		lightProjection[3][3] = 1.0;
-		lightView = glm::lookAt(shadowBox->getCenter(), shadowBox->getCenter() + glm::normalize(-lightPos),glm::vec3(0,1,0));
-
-		lightSpaceMatrix = lightProjection * lightView;
-		shaderDepth.setMatrix4("lightSpaceMatrix", 1, false, glm::value_ptr(lightSpaceMatrix));
-
-		// Settea la matriz de vista y projection al shader con solo color
-		shader.setMatrix4("projection", 1, false, glm::value_ptr(projection));
-		shader.setMatrix4("view", 1, false, glm::value_ptr(view));
-
-		// Settea la matriz de vista y projection al shader con skybox
-		shaderSkybox.setMatrix4("projection", 1, false,
-				glm::value_ptr(projection));
-		shaderSkybox.setMatrix4("view", 1, false,
-				glm::value_ptr(glm::mat4(glm::mat3(view))));
-		// Settea la matriz de vista y projection al shader con multiples luces
-		shaderMulLighting.setMatrix4("projection", 1, false,
-					glm::value_ptr(projection));
-		shaderMulLighting.setMatrix4("view", 1, false,
-				glm::value_ptr(view));
-		shaderMulLighting.setMatrix4("lightSpaceMatrix", 1, false,
-				glm::value_ptr(lightSpaceMatrix));
-		// Settea la matriz de vista y projection al shader con multiples luces
-		shaderTerrain.setMatrix4("projection", 1, false,
-					glm::value_ptr(projection));
-		shaderTerrain.setMatrix4("view", 1, false,
-				glm::value_ptr(view));
-		shaderTerrain.setMatrix4("lightSpaceMatrix", 1, false,
-				glm::value_ptr(lightSpaceMatrix));
-		// Settea la matriz de vista y projection al shader para el fountain
-		shaderParticlesFountain.setMatrix4("projection", 1, false,
-					glm::value_ptr(projection));
-		shaderParticlesFountain.setMatrix4("view", 1, false,
-				glm::value_ptr(view));
-		// Settea la matriz de vista y projection al shader para la turbina
-		shaderParticlesLeftThruster.setInt("Pass", 2);
-		shaderParticlesLeftThruster.setMatrix4("projection", 1, false, glm::value_ptr(projection));
-		shaderParticlesLeftThruster.setMatrix4("view", 1, false, glm::value_ptr(view));
-
-		shaderParticlesRightThruster.setInt("Pass", 2);
-		shaderParticlesRightThruster.setMatrix4("projection", 1, false, glm::value_ptr(projection));
-		shaderParticlesRightThruster.setMatrix4("view", 1, false, glm::value_ptr(view));
-
-		/*******************************************
-		 * Propiedades de neblina
-		 *******************************************/
-		shaderMulLighting.setVectorFloat3("fogColor", glm::value_ptr(glm::vec3(0.5, 0.5, 0.4)));
-		shaderTerrain.setVectorFloat3("fogColor", glm::value_ptr(glm::vec3(0.5, 0.5, 0.4)));
-		shaderSkybox.setVectorFloat3("fogColor", glm::value_ptr(glm::vec3(0.5, 0.5, 0.4)));
-
-		/*******************************************
-		 * Propiedades Luz direccional
-		 *******************************************/
-		shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.5)));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
-		shaderMulLighting.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-0.707106781, -0.707106781, 0.0)));
-
-		/*******************************************
-		 * Propiedades Luz direccional Terrain
-		 *******************************************/
-		shaderTerrain.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
-		shaderTerrain.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
-		shaderTerrain.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.5)));
-		shaderTerrain.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
-		shaderTerrain.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-0.707106781, -0.707106781, 0.0)));
-
-		/*******************************************
-		 * Propiedades SpotLights
-		 *******************************************/
-
-		/*******************************************
-		 * Propiedades PointLights
-		 *******************************************/
-
-		/*******************************************
-		 * 1.- We render the depth buffer
-		 *******************************************/
-		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// render scene from light's point of view
-		glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-		glClear(GL_DEPTH_BUFFER_BIT);
-		//glCullFace(GL_FRONT);
-		prepareDepthScene();
-		renderScene(false);
-		//glCullFace(GL_BACK);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-		/*******************************************
-		 * Debug to view the texture view map
-		 *******************************************/
-		// reset viewport
-		/*glViewport(0, 0, screenWidth, screenHeight);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// render Depth map to quad for visual debugging
-		shaderViewDepth.setMatrix4("projection", 1, false, glm::value_ptr(glm::mat4(1.0)));
-		shaderViewDepth.setMatrix4("view", 1, false, glm::value_ptr(glm::mat4(1.0)));
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, depthMap);
-		boxViewDepth.setScale(glm::vec3(2.0, 2.0, 1.0));
-		boxViewDepth.render();*/
-
-		/*******************************************
-		 * 2.- We render the normal objects
-		 *******************************************/
-		glViewport(0, 0, screenWidth, screenHeight);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		prepareScene();
-		glActiveTexture(GL_TEXTURE10);
-		glBindTexture(GL_TEXTURE_2D, depthMap);
-		shaderMulLighting.setInt("shadowMap", 10);
-		shaderTerrain.setInt("shadowMap", 10);
-		/*******************************************
-		 * Skybox
-		 *******************************************/
-		GLint oldCullFaceMode;
-		GLint oldDepthFuncMode;
-		// deshabilita el modo del recorte de caras ocultas para ver las esfera desde adentro
-		glGetIntegerv(GL_CULL_FACE_MODE, &oldCullFaceMode);
-		glGetIntegerv(GL_DEPTH_FUNC, &oldDepthFuncMode);
-		shaderSkybox.setFloat("skybox", 0);
-		glCullFace(GL_FRONT);
-		glDepthFunc(GL_LEQUAL);
-		glActiveTexture(GL_TEXTURE0);
-		skyboxSphere.render();
-		glCullFace(oldCullFaceMode);
-		glDepthFunc(oldDepthFuncMode);
-		renderScene();
-		/*******************************************
-		 * Debug to box light box
-		 *******************************************/
-		/*glm::vec3 front = glm::normalize(-lightPos);
-		glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), front));
-		glm::vec3 up = glm::normalize(glm::cross(front, right));
-		glDisable(GL_CULL_FACE);
-		glm::mat4 boxViewTransform = glm::mat4(1.0f);
-		boxViewTransform = glm::translate(boxViewTransform, centerBox);
-		boxViewTransform[0] = glm::vec4(right, 0.0);
-		boxViewTransform[1] = glm::vec4(up, 0.0);
-		boxViewTransform[2] = glm::vec4(front, 0.0);
-		boxViewTransform = glm::scale(boxViewTransform, glm::vec3(shadowBox->getWidth(), shadowBox->getHeight(), shadowBox->getLength()));
-		boxLightViewBox.enableWireMode();
-		boxLightViewBox.render(boxViewTransform);
-		glEnable(GL_CULL_FACE);*/
-
-		/*******************************************
-		 * Creacion de colliders
-		 * IMPORTANT do this before interpolations
-		 *******************************************/
-
-		// Collider de spaceship
-		AbstractModel::OBB spaceshipCollider;
-		glm::mat4 modelmatrixColliderSpaceship = glm::mat4(modelMatrixSpaceship);
-		//modelmatrixColliderSpaceship = glm::rotate(modelmatrixColliderSpaceship,glm::radians(90.0f), glm::vec3(1, 0, 0));
-		// Set the orientation of collider before doing the scale
-		spaceshipCollider.u = glm::quat_cast(modelmatrixColliderSpaceship);
-		modelmatrixColliderSpaceship = glm::scale(modelmatrixColliderSpaceship, glm::vec3(4.418, 0.497, 0.237));
-		modelmatrixColliderSpaceship = glm::scale(modelmatrixColliderSpaceship, glm::vec3(0.5, 0.5, 0.5));
-		modelmatrixColliderSpaceship = glm::translate(modelmatrixColliderSpaceship,
-			glm::vec3(spaceshipClassicModelAnimate.getObb().c.x,
-				spaceshipClassicModelAnimate.getObb().c.y,
-				spaceshipClassicModelAnimate.getObb().c.z));
-		spaceshipCollider.e = spaceshipClassicModelAnimate.getObb().e * glm::vec3(4.418, 0.497, 0.237) * glm::vec3(0.5, 0.5, 0.5);
-		spaceshipCollider.c = glm::vec3(modelmatrixColliderSpaceship[3]);
-		addOrUpdateColliders(collidersOBB, "spaceship", spaceshipCollider, modelMatrixSpaceship);
-
-		/*******************************************
-		 * Render de colliders
-		 *******************************************/
-		for (std::map<std::string, std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
-				collidersOBB.begin(); it != collidersOBB.end(); it++) {
-			glm::mat4 matrixCollider = glm::mat4(1.0);
-			matrixCollider = glm::translate(matrixCollider, std::get<0>(it->second).c);
-			matrixCollider = matrixCollider * glm::mat4(std::get<0>(it->second).u);
-			matrixCollider = glm::scale(matrixCollider, std::get<0>(it->second).e * 2.0f);
-			boxCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
-			boxCollider.enableWireMode();
-			boxCollider.render(matrixCollider);
-		}
-
-		for (std::map<std::string, std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
-				collidersSBB.begin(); it != collidersSBB.end(); it++) {
-			glm::mat4 matrixCollider = glm::mat4(1.0);
-			matrixCollider = glm::translate(matrixCollider, std::get<0>(it->second).c);
-			matrixCollider = glm::scale(matrixCollider, glm::vec3(std::get<0>(it->second).ratio * 2.0f));
-			sphereCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
-			sphereCollider.enableWireMode();
-			sphereCollider.render(matrixCollider);
-		}
+		glm::mat4 view;
+		glm::vec3 axis;
+		glm::vec3 target;
+		float angleTarget;
 
 
-		/*******************************************
-		 * Test Colisions
-		 *******************************************/
-		for (std::map<std::string,
-				std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
-				collidersOBB.begin(); it != collidersOBB.end(); it++) {
-			bool isCollision = false;
-			for (std::map<std::string,
-					std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator jt =
-					collidersOBB.begin(); jt != collidersOBB.end(); jt++) {
-				if (it != jt
-						&& testOBBOBB(std::get<0>(it->second),
+		modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(90, 15, -100));
+		modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-90.0f), glm::vec3(1, 0, 0));
+
+		modelMatrixHUD = glm::mat4(modelMatrixSpaceship);
+
+		modelMatrixMenu = glm::translate(modelMatrixMenu, glm::vec3(0, 0, 0));
+		modelMatrixMenu = glm::rotate(modelMatrixMenu, glm::radians(180.0f), glm::vec3(0, 1, 0));
+		modelMatrixMenu = glm::scale(modelMatrixMenu,glm::vec3(screenWidth/113.0, screenHeight/78.0, 1));
+
+		lastTime = TimeManager::Instance().GetTime();
+
+		// Time for the particles animation
+		currTimeParticlesAnimation = lastTime;
+		lastTimeParticlesAnimation = lastTime;
+
+		currTimeParticlesAnimationThruster = lastTime;
+		lastTimeParticlesAnimationThruster = lastTime;
+
+		glm::vec3 lightPos = glm::vec3(10.0, 10.0, 0.0);
+
+		
+
+			shadowBox = new ShadowBox(-lightPos, camera.get(), 15.0f, 0.1, 45.0f);
+
+			while (psi) {
+				currTime = TimeManager::Instance().GetTime();
+				if (currTime - lastTime < 0.016666667) {
+					glfwPollEvents();
+					continue;
+				}
+				lastTime = currTime;
+				TimeManager::Instance().CalculateFrameRate(true);
+				deltaTime = TimeManager::Instance().DeltaTime;
+				psi = processInput(true);
+
+				deltaCounter += deltaTime;
+
+				if (deltaCounter > 1.0f) {
+					secondsCounter++;
+					deltaCounter = 0;
+				}
+
+				std::map<std::string, bool> collisionDetection;
+
+				// Variables donde se guardan las matrices de cada articulacion por 1 frame
+			
+				if (mainGame) {
+					distanceFromTarget = 7;
+					camera->setDistanceFromTarget(distanceFromTarget);
+					glm::mat4 projection = glm::perspective(glm::radians(45.0f),
+						(float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
+
+
+					axis = glm::axis(glm::quat_cast(modelMatrixSpaceship));
+					angleTarget = glm::angle(glm::quat_cast(modelMatrixSpaceship));
+					target = modelMatrixSpaceship[3];
+
+
+					if (std::isnan(angleTarget))
+						angleTarget = 0.0;
+					if (axis.y < 0)
+						angleTarget = -angleTarget;
+
+
+					camera->setCameraTarget(target);
+					camera->setAngleTarget(glm::radians(-90.0f)); //this sets camera front :::: important
+					camera->setPitch(0.230067f);
+					camera->updateCamera();
+					view = camera->getViewMatrix();
+
+
+
+					shadowBox->update(screenWidth, screenHeight);
+
+
+					glm::mat4 lightProjection = glm::mat4(1.0), lightView = glm::mat4(1.0);
+					glm::mat4 lightSpaceMatrix;
+					lightProjection[0][0] = 2.0 / shadowBox->getWidth();
+					lightProjection[1][1] = 2.0 / shadowBox->getHeight();
+					lightProjection[2][2] = -2.0 / shadowBox->getLength();
+					lightProjection[3][3] = 1.0;
+					lightView = glm::lookAt(shadowBox->getCenter(), shadowBox->getCenter() + glm::normalize(-lightPos), glm::vec3(0, 1, 0));
+
+					lightSpaceMatrix = lightProjection * lightView;
+					shaderDepth.setMatrix4("lightSpaceMatrix", 1, false, glm::value_ptr(lightSpaceMatrix));
+
+					// Settea la matriz de vista y projection al shader con solo color
+					shader.setMatrix4("projection", 1, false, glm::value_ptr(projection));
+					shader.setMatrix4("view", 1, false, glm::value_ptr(view));
+
+					// Settea la matriz de vista y projection al shader con skybox
+					shaderSkybox.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderSkybox.setMatrix4("view", 1, false,
+						glm::value_ptr(glm::mat4(glm::mat3(view))));
+					// Settea la matriz de vista y projection al shader con multiples luces
+					shaderMulLighting.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderMulLighting.setMatrix4("view", 1, false,
+						glm::value_ptr(view));
+					shaderMulLighting.setMatrix4("lightSpaceMatrix", 1, false,
+						glm::value_ptr(lightSpaceMatrix));
+					// Settea la matriz de vista y projection al shader con multiples luces
+					shaderTerrain.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderTerrain.setMatrix4("view", 1, false,
+						glm::value_ptr(view));
+					shaderTerrain.setMatrix4("lightSpaceMatrix", 1, false,
+						glm::value_ptr(lightSpaceMatrix));
+					// Settea la matriz de vista y projection al shader para el fountain
+					shaderParticlesFountain.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderParticlesFountain.setMatrix4("view", 1, false,
+						glm::value_ptr(view));
+					// Settea la matriz de vista y projection al shader para la turbina
+					shaderParticlesLeftThruster.setInt("Pass", 2);
+					shaderParticlesLeftThruster.setMatrix4("projection", 1, false, glm::value_ptr(projection));
+					shaderParticlesLeftThruster.setMatrix4("view", 1, false, glm::value_ptr(view));
+
+					shaderParticlesRightThruster.setInt("Pass", 2);
+					shaderParticlesRightThruster.setMatrix4("projection", 1, false, glm::value_ptr(projection));
+					shaderParticlesRightThruster.setMatrix4("view", 1, false, glm::value_ptr(view));
+
+					/*******************************************
+					 * Propiedades de neblina
+					 *******************************************/
+					shaderMulLighting.setVectorFloat3("fogColor", glm::value_ptr(glm::vec3(0.188, 0.098, 0.203)));
+					shaderTerrain.setVectorFloat3("fogColor", glm::value_ptr(glm::vec3(0.188, 0.098, 0.203)));
+					shaderSkybox.setVectorFloat3("fogColor", glm::value_ptr(glm::vec3(0.188, 0.098, 0.203)));
+
+					/*******************************************
+					 * Propiedades Luz direccional
+					 *******************************************/
+					shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+					shaderMulLighting.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+					shaderMulLighting.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.5)));
+					shaderMulLighting.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+					shaderMulLighting.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-0.707106781, -0.707106781, 0.0)));
+
+					/*******************************************
+					 * Propiedades Luz direccional Terrain
+					 *******************************************/
+					shaderTerrain.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+					shaderTerrain.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+					shaderTerrain.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.5, 0.5, 0.5)));
+					shaderTerrain.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.2, 0.2, 0.2)));
+					shaderTerrain.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-0.707106781, -0.707106781, 0.0)));
+
+					/*******************************************
+					 * 1.- We render the depth buffer
+					 *******************************************/
+					glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+					// render scene from light's point of view
+					glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+					glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+					glClear(GL_DEPTH_BUFFER_BIT);
+					//glCullFace(GL_FRONT);
+					prepareDepthScene();
+					renderScene(false);
+					//glCullFace(GL_BACK);
+					glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+					/*******************************************
+					 * 2.- We render the normal objects
+					 *******************************************/
+					glViewport(0, 0, screenWidth, screenHeight);
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+					prepareScene();
+					glActiveTexture(GL_TEXTURE10);
+					glBindTexture(GL_TEXTURE_2D, depthMap);
+					shaderMulLighting.setInt("shadowMap", 10);
+					shaderTerrain.setInt("shadowMap", 10);
+					/*******************************************
+					 * Skybox
+					 *******************************************/
+					GLint oldCullFaceMode;
+					GLint oldDepthFuncMode;
+					// deshabilita el modo del recorte de caras ocultas para ver las esfera desde adentro
+					glGetIntegerv(GL_CULL_FACE_MODE, &oldCullFaceMode);
+					glGetIntegerv(GL_DEPTH_FUNC, &oldDepthFuncMode);
+					shaderSkybox.setFloat("skybox", 0);
+					glCullFace(GL_FRONT);
+					glDepthFunc(GL_LEQUAL);
+					glActiveTexture(GL_TEXTURE0);
+					skyboxSphere.render();
+					glCullFace(oldCullFaceMode);
+					glDepthFunc(oldDepthFuncMode);
+
+					renderScene();
+
+					/*******************************************
+					 * Creacion de colliders
+					 * IMPORTANT do this before interpolations
+					 *******************************************/
+
+					 // Collider de spaceship
+					AbstractModel::OBB spaceshipCollider;
+					glm::mat4 modelmatrixColliderSpaceship = glm::mat4(modelMatrixSpaceship);
+					//modelmatrixColliderSpaceship = glm::rotate(modelmatrixColliderSpaceship,glm::radians(90.0f), glm::vec3(1, 0, 0));
+					// Set the orientation of collider before doing the scale
+					spaceshipCollider.u = glm::quat_cast(modelmatrixColliderSpaceship);
+					modelmatrixColliderSpaceship = glm::scale(modelmatrixColliderSpaceship, glm::vec3(4.418, 0.497, 0.237));
+					modelmatrixColliderSpaceship = glm::scale(modelmatrixColliderSpaceship, glm::vec3(0.5, 0.5, 0.5));
+					modelmatrixColliderSpaceship = glm::translate(modelmatrixColliderSpaceship,
+						glm::vec3(spaceshipClassicModelAnimate.getObb().c.x,
+							spaceshipClassicModelAnimate.getObb().c.y,
+							spaceshipClassicModelAnimate.getObb().c.z));
+					spaceshipCollider.e = spaceshipClassicModelAnimate.getObb().e * glm::vec3(4.418, 0.497, 0.237) * glm::vec3(0.5, 0.5, 0.5);
+					spaceshipCollider.c = glm::vec3(modelmatrixColliderSpaceship[3]);
+					addOrUpdateColliders(collidersOBB, "spaceship", spaceshipCollider, modelMatrixSpaceship);
+
+					//collider de asteroids
+					//std::vector<AbstractModel::SBB> asteroidsCollider(asteroidsPos.size());
+					
+					for (int i = 0; i < asteroidsPos.size(); i++) {
+						AbstractModel::SBB asteroidCollider;
+						glm::mat4 modelMatrixColliderAsteroids = glm::mat4(1.0f);
+						modelMatrixColliderAsteroids = glm::translate(modelMatrixColliderAsteroids, asteroidsPos[i]);
+						modelMatrixColliderAsteroids = glm::scale(modelMatrixColliderAsteroids, glm::vec3(1.0, 1.0, 1.0));
+						
+						modelMatrixColliderAsteroids = glm::translate(modelMatrixColliderAsteroids, modelAsteroid.getSbb().c);
+						asteroidCollider.c = glm::vec3(modelMatrixColliderAsteroids[3]);
+						asteroidCollider.ratio = modelAsteroid.getSbb().ratio * 1.0;
+						addOrUpdateColliders(collidersSBB, "asteroid:" + std::to_string(i), asteroidCollider, modelMatrixColliderAsteroids);
+					}
+					
+
+					/*******************************************
+					 * Render de colliders
+					 *******************************************/
+					/*
+					for (std::map<std::string, std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
+						collidersOBB.begin(); it != collidersOBB.end(); it++) {
+						glm::mat4 matrixCollider = glm::mat4(1.0);
+						matrixCollider = glm::translate(matrixCollider, std::get<0>(it->second).c);
+						matrixCollider = matrixCollider * glm::mat4(std::get<0>(it->second).u);
+						matrixCollider = glm::scale(matrixCollider, std::get<0>(it->second).e * 2.0f);
+						boxCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
+						boxCollider.enableWireMode();
+						boxCollider.render(matrixCollider);
+					}
+
+					for (std::map<std::string, std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
+						collidersSBB.begin(); it != collidersSBB.end(); it++) {
+						glm::mat4 matrixCollider = glm::mat4(1.0);
+						matrixCollider = glm::translate(matrixCollider, std::get<0>(it->second).c);
+						matrixCollider = glm::scale(matrixCollider, glm::vec3(std::get<0>(it->second).ratio * 2.0f));
+						sphereCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
+						sphereCollider.enableWireMode();
+						sphereCollider.render(matrixCollider);
+					}
+
+					*/
+					/*******************************************
+					 * Test Colisions
+					 *******************************************/
+					for (std::map<std::string,
+						std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
+						collidersOBB.begin(); it != collidersOBB.end(); it++) {
+						bool isCollision = false;
+						for (std::map<std::string,
+							std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator jt =
+							collidersOBB.begin(); jt != collidersOBB.end(); jt++) {
+							if (it != jt
+								&& testOBBOBB(std::get<0>(it->second),
+									std::get<0>(jt->second))) {
+								std::cout << "Colision " << it->first << " with "
+									<< jt->first << std::endl;
+								isCollision = true;
+							}
+						}
+						addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
+					}
+
+					for (std::map<std::string,
+						std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
+						collidersSBB.begin(); it != collidersSBB.end(); it++) {
+						bool isCollision = false;
+						for (std::map<std::string,
+							std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator jt =
+							collidersSBB.begin(); jt != collidersSBB.end(); jt++) {
+							if (it != jt
+								&& testSphereSphereIntersection(std::get<0>(it->second),
+									std::get<0>(jt->second))) {
+								std::cout << "Colision " << it->first << " with "
+									<< jt->first << std::endl;
+								isCollision = true;
+							}
+						}
+						addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
+					}
+
+					for (std::map<std::string,
+						std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
+						collidersSBB.begin(); it != collidersSBB.end(); it++) {
+						bool isCollision = false;
+						std::map<std::string,
+							std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator jt =
+							collidersOBB.begin();
+						for (; jt != collidersOBB.end(); jt++) {
+							if (testSphereOBox(std::get<0>(it->second),
 								std::get<0>(jt->second))) {
-					std::cout << "Colision " << it->first << " with "
-							<< jt->first << std::endl;
-					isCollision = true;
+								std::cout << "Colision " << it->first << " with "
+									<< jt->first << std::endl;
+								isCollision = true;
+								addOrUpdateCollisionDetection(collisionDetection, jt->first, isCollision);
+							}
+						}
+						addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
+					}
+
+					std::map<std::string, bool>::iterator colIt;
+					for (colIt = collisionDetection.begin(); colIt != collisionDetection.end();
+						colIt++) {
+						std::map<std::string,
+							std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
+							collidersSBB.find(colIt->first);
+						std::map<std::string,
+							std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator jt =
+							collidersOBB.find(colIt->first);
+						if (it != collidersSBB.end()) {
+							if (!colIt->second)
+								addOrUpdateColliders(collidersSBB, it->first);
+						}
+						if (jt != collidersOBB.end()) {
+							if (!colIt->second)
+								addOrUpdateColliders(collidersOBB, jt->first);
+							else {
+								
+								if (jt->first.compare("spaceship") == 0) {
+									currentHitMoment = secondsCounter;
+									modelMatrixSpaceship = std::get<1>(jt->second);
+									if (currentHitMoment - lastHitMoment > 5) {
+										shipHealth--;
+										hit = true;
+									}
+									else {
+										hit = false;
+										dontPlay = false;
+									}
+									
+									lastHitMoment = currentHitMoment;
+								}
+							}
+						}
+					}
+
+					/*******************************************
+					 * State machines
+					 *******************************************/
+
+
+					glfwSwapBuffers(window);
+
+
+					if (!downPressed && numberOfTicksD != 0) {
+						if (spaceshipRotZLimit < 0) {
+							modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
+							modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, -0.1));
+							//modelMatrixHUD = glm::translate(modelMatrixHUD, glm::vec3(0, 0, -0.1));
+							spaceshipRotZLimit += spaceshipRotZ;
+							numberOfTicksD--;
+						}
+
+					}
+					if (!upPressed && numberOfTicksU != 0) {
+						if (spaceshipRotZLimit > 0) {
+							modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
+							modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, 0.1));
+							//modelMatrixHUD = glm::translate(modelMatrixHUD, glm::vec3(0, 0, 0.1));
+							spaceshipRotZLimit -= spaceshipRotZ;
+							numberOfTicksU--;
+						}
+
+					}
+
+					if (!rightPressed && numberOfTicksR != 0) {
+						if (spaceshipRotXLimit < 0) {
+							modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
+							spaceshipRotXLimit += spaceshipRotX;
+							numberOfTicksR--;
+						}
+
+					}
+
+					if (!leftPressed && numberOfTicksL != 0) {
+						if (spaceshipRotXLimit > 0) {
+							modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotX), glm::vec3(1, 0, 0));
+							spaceshipRotXLimit -= spaceshipRotX;
+							numberOfTicksL--;
+						}
+
+					}
+
+
+
+					/****************************+
+					 * Open AL sound data
+					 */
+
+
+					source0Pos[0] = modelMatrixSpaceship[3].x;
+					source0Pos[1] = modelMatrixSpaceship[3].y;
+					source0Pos[2] = modelMatrixSpaceship[3].z;
+					alSourcefv(source[0], AL_POSITION, source0Pos);
+
+					source2Pos[0] = modelMatrixSpaceship[3].x;
+					source2Pos[1] = modelMatrixSpaceship[3].y;
+					source2Pos[2] = modelMatrixSpaceship[3].z;
+					alSourcefv(source[2], AL_POSITION, source2Pos);
+
+					source3Pos[0] = modelMatrixSpaceship[3].x;
+					source3Pos[1] = modelMatrixSpaceship[3].y;
+					source3Pos[2] = modelMatrixSpaceship[3].z;
+					alSourcefv(source[3], AL_POSITION, source3Pos);
+
+					source4Pos[0] = modelMatrixSpaceship[3].x;
+					source4Pos[1] = modelMatrixSpaceship[3].y;
+					source4Pos[2] = modelMatrixSpaceship[3].z;
+					alSourcefv(source[4], AL_POSITION, source4Pos);
+
+					alSourcefv(source[5], AL_POSITION, source4Pos);
+
+					alSourcefv(source[9], AL_POSITION, source4Pos);
+					alSourcefv(source[10], AL_POSITION, source4Pos);
+
+					// Listener for the Thris person camera
+					listenerPos[0] = modelMatrixSpaceship[3].x;
+					listenerPos[1] = modelMatrixSpaceship[3].y;
+					listenerPos[2] = modelMatrixSpaceship[3].z;
+					alListenerfv(AL_POSITION, listenerPos);
+
+					glm::vec3 upModel = glm::normalize(modelMatrixSpaceship[1]);
+					glm::vec3 frontModel = glm::normalize(modelMatrixSpaceship[2]);
+
+					listenerOri[0] = frontModel.x;
+					listenerOri[1] = frontModel.y;
+					listenerOri[2] = frontModel.z;
+					listenerOri[3] = upModel.x;
+					listenerOri[4] = upModel.y;
+					listenerOri[5] = upModel.z;
+
+					alListenerfv(AL_ORIENTATION, listenerOri);
+
+					if (!stopSource1) {
+						if (!isPlaying(source[1])) {
+
+							alSourcePlay(source[1]);
+						}
+					}
+					else alSourceStop(source[1]);
+
+
+				if (!isPlaying(source[9])) {
+					alSourcePlay(source[9]);
 				}
-			}
-			addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
-		}
-
-		for (std::map<std::string,
-				std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
-				collidersSBB.begin(); it != collidersSBB.end(); it++) {
-			bool isCollision = false;
-			for (std::map<std::string,
-					std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator jt =
-					collidersSBB.begin(); jt != collidersSBB.end(); jt++) {
-				if (it != jt
-						&& testSphereSphereIntersection(std::get<0>(it->second),
-								std::get<0>(jt->second))) {
-					std::cout << "Colision " << it->first << " with "
-							<< jt->first << std::endl;
-					isCollision = true;
-				}
-			}
-			addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
-		}
-
-		for (std::map<std::string,
-				std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
-				collidersSBB.begin(); it != collidersSBB.end(); it++) {
-			bool isCollision = false;
-			std::map<std::string,
-					std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator jt =
-					collidersOBB.begin();
-			for (; jt != collidersOBB.end(); jt++) {
-				if (testSphereOBox(std::get<0>(it->second),
-								std::get<0>(jt->second))) {
-					std::cout << "Colision " << it->first << " with "
-							<< jt->first << std::endl;
-					isCollision = true;
-					addOrUpdateCollisionDetection(collisionDetection, jt->first, isCollision);
-				}
-			}
-			addOrUpdateCollisionDetection(collisionDetection, it->first, isCollision);
-		}
-
-		std::map<std::string, bool>::iterator colIt;
-		for (colIt = collisionDetection.begin(); colIt != collisionDetection.end();
-				colIt++) {
-			std::map<std::string,
-					std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
-					collidersSBB.find(colIt->first);
-			std::map<std::string,
-					std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator jt =
-					collidersOBB.find(colIt->first);
-			if (it != collidersSBB.end()) {
-				if (!colIt->second)
-					addOrUpdateColliders(collidersSBB, it->first);
-			}
-			if (jt != collidersOBB.end()) {
-				if (!colIt->second)
-					addOrUpdateColliders(collidersOBB, jt->first);
-				else {
 
 				}
+
+				else if (startMenu) {
+					distanceFromTarget = 10;
+					camera->setDistanceFromTarget(distanceFromTarget);
+					glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+					glViewport(0, 0, screenWidth, screenHeight);
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+					glm::mat4 view;
+					glm::vec3 axis;
+					glm::vec3 target;
+					float angleTarget;
+
+					glm::mat4 projection = glm::perspective(glm::radians(45.0f),
+						(float)screenWidth / (float)screenHeight, 0.01f, 100.0f);
+
+					
+
+					axis = glm::axis(glm::quat_cast(modelMatrixMenu));
+					angleTarget = glm::angle(glm::quat_cast(modelMatrixMenu));
+					target = modelMatrixMenu[3];
+
+
+					camera->setCameraTarget(target);
+					camera->setAngleTarget(glm::radians(0.0f)); //this sets camera front :::: important
+					camera->setPitch(0.f);
+					camera->updateCamera();
+					view = camera->getViewMatrix();
+
+
+					shaderMenu.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderMenu.setMatrix4("view", 1, false,
+						glm::value_ptr(view));
+
+
+					shader.setMatrix4("projection", 1, false, glm::value_ptr(projection));
+					shader.setMatrix4("view", 1, false, glm::value_ptr(view));
+
+					shaderMenu.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderMenu.setMatrix4("view", 1, false,
+						glm::value_ptr(view));
+
+					shaderMenu.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+					shaderMenu.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(1.0, 1.0, 1.0)));
+					shaderMenu.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.7, 0.7, 0.7)));
+					shaderMenu.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.9, 0.9, 0.9)));
+					shaderMenu.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-1.0, 0.0, 0.0)));
+
+					shaderMenu.setInt("spotLightCount", 0);
+					shaderMenu.setInt("pointLightCount", 0);
+
+					if (!option) {
+						modelStart.render(modelMatrixMenu);
+					}
+					else
+						modelChange.render(modelMatrixMenu);
+
+
+					//OPEN AL
+
+					source5Pos[0] = camera->getPosition().x;
+					source5Pos[1] = camera->getPosition().y;
+					source5Pos[2] = camera->getPosition().z;
+
+					alSourcefv(source[6], AL_POSITION, source5Pos);
+
+					alSourcefv(source[7], AL_POSITION, source5Pos);
+
+					alSourcefv(source[8], AL_POSITION, source5Pos);
+
+					// Listener for the Third person camera
+					listenerPos[0] = camera->getPosition().x;
+					listenerPos[1] = camera->getPosition().y;
+					listenerPos[2] = camera->getPosition().z;
+					alListenerfv(AL_POSITION, listenerPos);
+
+					if (!stopMenuMusic) {
+						if (!isPlaying(source[8])) {
+							alSourcePlay(source[8]);
+						}
+					}
+					else alSourceStop(source[8]);
+
+
+					glfwSwapBuffers(window);
+				}
+
+			
+
+				else if (selectShip) {
+
+					spaceshipClassicModelAnimate.setShader(&shaderMenu);
+					distanceFromTarget = 25;
+					camera->setDistanceFromTarget(distanceFromTarget);
+					glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+					glViewport(0, 0, screenWidth, screenHeight);
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+					glm::mat4 view;
+					glm::vec3 axis;
+					glm::vec3 target;
+					float angleTarget;
+
+					glm::mat4 projection = glm::perspective(glm::radians(45.0f),
+						(float)screenWidth / (float)screenHeight, 0.01f, 100.0f);
+
+					
+					glm::mat4 modelMatrixSelectionClassic = glm::mat4(modelMatrixSpaceship);
+					modelMatrixSelectionClassic = glm::rotate(modelMatrixSelectionClassic, glm::radians(-30.0f), glm::vec3(0, 1, 0));
+					modelMatrixSelectionClassic = glm::rotate(modelMatrixSelectionClassic,glm::radians(menuRotation),glm::vec3(0,0,1));
+					modelMatrixSelectionClassic = glm::scale(modelMatrixSelectionClassic, glm::vec3(4.418, 0.497, 0.237));
+					menuRotation += 1.0f;
+
+					
+					glm::mat4 modelMatrixHUD = glm::mat4(modelMatrixSpaceship);
+					modelMatrixHUD = glm::translate(modelMatrixHUD, glm::vec3(-13,0,0));
+					modelMatrixHUD = glm::rotate(modelMatrixHUD, glm::radians(-90.0f), glm::vec3(0, 1, 0));
+					modelMatrixHUD = glm::rotate(modelMatrixHUD, glm::radians(-90.0f), glm::vec3(0, 0, 1));
+					modelMatrixHUD = glm::scale(modelMatrixHUD, glm::vec3(10, 10, 10));
+
+					axis = glm::axis(glm::quat_cast(modelMatrixSelectionClassic));
+					angleTarget = glm::angle(glm::quat_cast(modelMatrixSelectionClassic));
+					target = modelMatrixSelectionClassic[3];
+
+
+					camera->setCameraTarget(target);
+					camera->setAngleTarget(glm::radians(90.0f)); //this sets camera front :::: important
+					//camera->setPitch(0.f);
+					camera->updateCamera();
+					view = camera->getViewMatrix();
+
+
+					shaderMenu.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderMenu.setMatrix4("view", 1, false,
+						glm::value_ptr(view));
+
+
+					shader.setMatrix4("projection", 1, false, glm::value_ptr(projection));
+					shader.setMatrix4("view", 1, false, glm::value_ptr(view));
+
+					shaderMenu.setMatrix4("projection", 1, false,
+						glm::value_ptr(projection));
+					shaderMenu.setMatrix4("view", 1, false,
+						glm::value_ptr(view));
+
+					shaderMenu.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+					shaderMenu.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(1, 1, 1)));
+					shaderMenu.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.7, 0.7, 0.7)));
+					shaderMenu.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.9, 0.9, 0.9)));
+					shaderMenu.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-1.0, 0.0, 0.0)));
+
+					shaderMenu.setInt("spotLightCount", 0);
+					shaderMenu.setInt("pointLightCount", 0);
+
+					if(shipSelect==0){
+						spaceshipClassicModelAnimate.render(modelMatrixSelectionClassic);
+						classicSpaceshipSelection.render(modelMatrixHUD);
+						
+					}
+					else {
+						spaceshipPurpleModelAnimate.render(modelMatrixSelectionClassic);
+						enemySpaceshipSelection.render(modelMatrixHUD);
+					}
+
+
+
+					
+
+
+
+					//OPEN AL
+
+					source5Pos[0] = camera->getPosition().x;
+					source5Pos[1] = camera->getPosition().y;
+					source5Pos[2] = camera->getPosition().z;
+
+					alSourcefv(source[6], AL_POSITION, source5Pos);
+
+					alSourcefv(source[7], AL_POSITION, source5Pos);
+
+					alSourcefv(source[8], AL_POSITION, source5Pos);
+
+					// Listener for the Third person camera
+					listenerPos[0] = camera->getPosition().x;
+					listenerPos[1] = camera->getPosition().y;
+					listenerPos[2] = camera->getPosition().z;
+
+					alListenerfv(AL_POSITION, listenerPos);
+
+					if (!stopMenuMusic) {
+						if (!isPlaying(source[8])) {
+							alSourcePlay(source[8]);
+						}
+					}
+					else alSourceStop(source[8]);
+
+
+
+					glfwSwapBuffers(window);
+				}
+
 			}
-		}
 
-		/*******************************************
-		 * Interpolation key frames with disconect objects
-		 *******************************************/
-		
-		// Constantes de animaciones
-		
-
-		/*******************************************
-		 * State machines
-		 *******************************************/
-
-
-		glfwSwapBuffers(window);
-
-
-		if (!downPressed && numberOfTicksD != 0) {
-			if (spaceshipRotZLimit < 0) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
-				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, -0.1));
-				spaceshipRotZLimit += spaceshipRotZ;
-				numberOfTicksD--;
-			}
-
-		}
-		if (!upPressed && numberOfTicksU != 0) {
-			if (spaceshipRotZLimit > 0) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
-				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, 0.1));
-				spaceshipRotZLimit -= spaceshipRotZ;
-				numberOfTicksU--;
-			}
-
-		}
-
-		if (!rightPressed && numberOfTicksR != 0) {
-			if (spaceshipRotXLimit < 0) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
-				spaceshipRotXLimit += spaceshipRotX;
-				numberOfTicksR--;
-			}
-
-		}
-
-		if (!leftPressed && numberOfTicksL != 0) {
-			if (spaceshipRotXLimit > 0) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotX), glm::vec3(1, 0, 0));
-				spaceshipRotXLimit -= spaceshipRotX;
-				numberOfTicksL--;
-			}
-
-		}
-
-
-
-		/****************************+
-		 * Open AL sound data
-		 */
-
-		
-		source0Pos[0] = modelMatrixSpaceship[3].x;
-		source0Pos[1] = modelMatrixSpaceship[3].y;
-		source0Pos[2] = modelMatrixSpaceship[3].z;
-		alSourcefv(source[0], AL_POSITION, source0Pos);
-
-		source2Pos[0] = modelMatrixSpaceship[3].x;
-		source2Pos[1] = modelMatrixSpaceship[3].y;
-		source2Pos[2] = modelMatrixSpaceship[3].z;
-		alSourcefv(source[2], AL_POSITION, source2Pos);
-
-		source3Pos[0] = modelMatrixSpaceship[3].x;
-		source3Pos[1] = modelMatrixSpaceship[3].y;
-		source3Pos[2] = modelMatrixSpaceship[3].z;
-		alSourcefv(source[3], AL_POSITION, source3Pos);
-
-		source4Pos[0] = modelMatrixSpaceship[3].x;
-		source4Pos[1] = modelMatrixSpaceship[3].y;
-		source4Pos[2] = modelMatrixSpaceship[3].z;
-		alSourcefv(source[4], AL_POSITION, source4Pos);
-
-		alSourcefv(source[5], AL_POSITION, source4Pos);
-
-		// Listener for the Thris person camera
-		listenerPos[0] = modelMatrixSpaceship[3].x;
-		listenerPos[1] = modelMatrixSpaceship[3].y;
-		listenerPos[2] = modelMatrixSpaceship[3].z;
-		alListenerfv(AL_POSITION, listenerPos);
-
-		glm::vec3 upModel = glm::normalize(modelMatrixSpaceship[1]);
-		glm::vec3 frontModel = glm::normalize(modelMatrixSpaceship[2]);
-
-		listenerOri[0] = frontModel.x;
-		listenerOri[1] = frontModel.y;
-		listenerOri[2] = frontModel.z;
-		listenerOri[3] = upModel.x;
-		listenerOri[4] = upModel.y;
-		listenerOri[5] = upModel.z;
-
-		// Listener for the First person camera
-		/*listenerPos[0] = camera->getPosition().x;
-		listenerPos[1] = camera->getPosition().y;
-		listenerPos[2] = camera->getPosition().z;
-		alListenerfv(AL_POSITION, listenerPos);
-		listenerOri[0] = camera->getFront().x;
-		listenerOri[1] = camera->getFront().y;
-		listenerOri[2] = camera->getFront().z;
-		listenerOri[3] = camera->getUp().x;
-		listenerOri[4] = camera->getUp().y;
-		listenerOri[5] = camera->getUp().z;*/
-		alListenerfv(AL_ORIENTATION, listenerOri);
-
-		if (!stopSource1) {
-			if (!isPlaying(source[1])) {
-				alSourcePlay(source[1]);
-			}
-		}
-		else alSourceStop(source[1]);
-
-		
-	}
 }
 
 void prepareScene(){
@@ -1659,7 +2203,23 @@ void prepareScene(){
 
 	spaceshipClassicModelAnimate.setShader(&shaderMulLighting);
 
+	spaceshipPurpleModelAnimate.setShader(&shaderMulLighting);
+
 	modelCrosshair.setShader(&shaderMulLighting);
+
+	modelHudFullHealth.setShader(&shaderMulLighting);
+
+	modelHudFullHealth2.setShader(&shaderMulLighting);
+
+	modelHudHalfHealth.setShader(&shaderMulLighting);
+	
+	modelHudThirdHealth.setShader(&shaderMulLighting);
+	
+	modelHudThirdHealth2.setShader(&shaderMulLighting);
+
+	modelHudNoHealth.setShader(&shaderMulLighting);
+
+	modelAsteroid.setShader(&shaderMulLighting);
 }
 
 void prepareDepthScene(){
@@ -1670,6 +2230,9 @@ void prepareDepthScene(){
 
 	spaceshipClassicModelAnimate.setShader(&shaderDepth);
 
+	spaceshipPurpleModelAnimate.setShader(&shaderDepth);
+
+	modelAsteroid.setShader(&shaderDepth);
 
 }
 
@@ -1718,20 +2281,42 @@ void renderScene(bool renderParticles){
 	glm::mat4 modelMatrixCrosshairFar = glm::mat4(modelMatrixSpaceship);
 	modelMatrixCrosshairFar = glm::translate(modelMatrixCrosshairFar, glm::vec3(-20, 0, 0));
 	modelMatrixCrosshairFar = glm::rotate(modelMatrixCrosshairFar, glm::radians(90.0f), glm::vec3(0, 1, 0));
+	modelMatrixCrosshairFar = glm::rotate(modelMatrixCrosshairFar, glm::radians(90.0f), glm::vec3(0, 1, 0));
 	modelMatrixCrosshairFar = glm::scale(modelMatrixCrosshairFar, glm::vec3(2, 2, 2));
 	modelCrosshair.render(modelMatrixCrosshairFar);
+
 
 	/*******************************************
 	 * Custom Anim objects obj
 	 *******************************************/
 
 	glColor3f(1, 1, 1);
+
+	if (modelMatrixSpaceship[3][1] < terrain.getHeightTerrain(modelMatrixSpaceship[3][0], modelMatrixSpaceship[3][2]) + 3) {
+		modelMatrixSpaceship[3][1] = terrain.getHeightTerrain(modelMatrixSpaceship[3][0], modelMatrixSpaceship[3][2]) + 3;
+	}
+
+
 	glm::mat4 modelMatrixSpaceshipBody = glm::mat4(modelMatrixSpaceship);
 	//modelMatrixSpaceshipBody = glm::rotate(modelMatrixSpaceshipBody, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
 	modelMatrixSpaceshipBody = glm::scale(modelMatrixSpaceshipBody, glm::vec3(4.418, 0.497, 0.237));
 	modelMatrixSpaceshipBody = glm::scale(modelMatrixSpaceshipBody, glm::vec3(0.5, 0.5, 0.5));
 	spaceshipClassicModelAnimate.setAnimationIndex(0);
-	spaceshipClassicModelAnimate.render(modelMatrixSpaceshipBody);
+	if (shipSelect == 0) {
+		spaceshipClassicModelAnimate.render(modelMatrixSpaceshipBody);
+	}else 
+		spaceshipPurpleModelAnimate.render(modelMatrixSpaceshipBody);
+
+
+	for (int i = 0; i < asteroidsPos.size(); i++) {
+		if(asteroidsPos[i].y < terrain.getHeightTerrain(asteroidsPos[i].x, asteroidsPos[i].z))
+			asteroidsPos[i].y = terrain.getHeightTerrain(asteroidsPos[i].x, asteroidsPos[i].z);
+		modelAsteroid.setPosition(asteroidsPos[i]);
+		modelAsteroid.setScale(glm::vec3(1, 1, 1));
+		//modelAsteroid.setOrientation(glm::vec3(0, lamp1Orientation[i], 0));
+		modelAsteroid.render();
+	}
+
 
 
 	/**********
@@ -1739,7 +2324,7 @@ void renderScene(bool renderParticles){
 	 */
 
 	blendingUnsorted.find("spaceship")->second = glm::vec3(modelMatrixSpaceship[3]);
-
+	blendingUnsorted.find("HUD")->second = glm::vec3(modelMatrixHUD[3]);
 	/**********
 	 * Sorter with alpha objects
 	 */
@@ -1789,6 +2374,53 @@ void renderScene(bool renderParticles){
 			 * End Render particles systems
 			 */
 		}
+		 else if (it->second.first.compare("HUD") == 0) {
+			 
+			 modelMatrixHUD[3] = modelMatrixSpaceship[3];
+			 glm::mat4 modelMatrixHUD2 = glm::mat4(modelMatrixHUD);
+			 modelMatrixHUD2 = glm::rotate(modelMatrixHUD2, glm::radians(90.0f) - 0.230067f, glm::vec3(0, 1, 0));
+			 modelMatrixHUD2 = glm::rotate(modelMatrixHUD2, glm::radians(90.0f), glm::vec3(0, 0, 1));
+			 modelMatrixHUD2 = glm::scale(modelMatrixHUD2, glm::vec3(5, 5.8, 1));
+			 if (shipHealth == 3) {
+				 if (secondsCounter % 2 != 0)
+					 modelHudFullHealth.render(modelMatrixHUD2);
+				 else
+					 modelHudFullHealth2.render(modelMatrixHUD2);
+			 }
+			 else if (shipHealth == 2) {
+				 modelHudHalfHealth.render(modelMatrixHUD2);
+			 }
+			 else if (shipHealth == 1) {
+				 if (secondsCounter % 2 != 0)
+					 modelHudThirdHealth.render(modelMatrixHUD2);
+				 else
+					 modelHudThirdHealth2.render(modelMatrixHUD2);
+			 }
+			 else {
+				 modelHudNoHealth.render(modelMatrixHUD2);
+			 }
+			 glm::mat4 modelMatrixHUD3 = glm::mat4(modelMatrixHUD2);
+			 modelMatrixHUD3 = glm::translate(modelMatrixHUD3, glm::vec3(0, 0, 5));
+			 modelHit.setAnimationIndex(0);
+			 if (hit) {
+				 animationCounter = secondsCounter;
+				 if (animationCounter - lastHitMoment < 1) {
+					 modelHit.render(modelMatrixHUD3);
+					 if (!isPlaying(source[10]) && !dontPlay) {
+						 alSourcePlay(source[10]);
+						 dontPlay = true;
+					 }
+				 }
+				 else {
+					 hit = false;
+					 dontPlay = false;
+				 }
+
+			 }
+
+		 }
+
+
 		else if(renderParticles && it->second.first.compare("Thruster") == 0){
 			/**********
 			 * Init Render particles systems
