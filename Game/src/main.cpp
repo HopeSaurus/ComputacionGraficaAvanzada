@@ -67,8 +67,6 @@ Shader shaderSkybox;
 Shader shaderMulLighting;
 //Shader para el terreno
 Shader shaderTerrain;
-//Shader para las particulas de fountain
-Shader shaderParticlesFountain;
 //Shader para las particulas de la turbina
 Shader shaderParticlesLeftThruster;
 Shader shaderParticlesRightThruster;
@@ -94,7 +92,6 @@ ShadowBox* shadowBox;
 
 // Models complex instances
 Model modelCrosshair;
-Model modelFountain;
 Model modelStart;
 Model modelChange;
 Model classicSpaceshipSelection;
@@ -116,7 +113,7 @@ Terrain terrain(-1, -1, 600, 16, "../Textures/Sheightmap.png");
 
 GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID, textureLandingPadID;
 GLuint textureTerrainBackgroundID, textureTerrainRID, textureTerrainGID, textureTerrainBID, textureTerrainBlendMapID;
-GLuint textureParticleFountainID, textureParticleThrusterID, texId;
+GLuint textureParticleThrusterID, texId;
 GLuint skyboxTextureID;
 
 GLenum types[6] = {
@@ -157,6 +154,7 @@ bool accelEnabled = false;
 bool brakeEnabled = false;
 glm::vec3 thrusterAccelDir = glm::vec3(0.0f,0.01f,0.0f);
 bool stopSource1 = false;
+float velocity = 0;
 
 //menu options
 bool startMenu = true;
@@ -178,6 +176,8 @@ bool hit = false;
 int currentHitMoment = 0;
 int lastHitMoment = 0;
 bool dontPlay = false;
+bool dontPlay2 = false;
+bool gameOver = false;
 
 bool exitApp = false;
 int lastMousePosX, offsetX = 0;
@@ -197,7 +197,6 @@ glm::vec3 spaceshipDirection = glm::vec3(-1.0,0.0,0.0);
 
 // Blending model unsorted
 std::map<std::string, glm::vec3> blendingUnsorted = {
-		{"fountain", glm::vec3(5.0, 0.0, -40.0)},
 		{"Thruster", glm::vec3(0.0, 0.0, 7.0)},
 		{"ThrusterR", glm::vec3(0.0, 0.0, 10.0)},
 		{"HUD",glm::vec3(90,15,-100)}
@@ -601,7 +600,6 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	shaderSkybox.initialize("../Shaders/skyBox.vs", "../Shaders/skyBox_fog.fs");
 	shaderMulLighting.initialize("../Shaders/iluminacion_textura_animation_shadow.vs", "../Shaders/multipleLights_shadow.fs");
 	shaderTerrain.initialize("../Shaders/terrain_shadow.vs", "../Shaders/terrain_shadow.fs");
-	shaderParticlesFountain.initialize("../Shaders/particlesFountain.vs", "../Shaders/particlesFountain.fs");
 	shaderParticlesLeftThruster.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
 	shaderParticlesRightThruster.initialize("../Shaders/particlesFire.vs", "../Shaders/particlesFire.fs", { "Position", "Velocity", "Age" });
 	shaderViewDepth.initialize("../Shaders/texturizado.vs", "../Shaders/texturizado_depth_view.fs");
@@ -916,25 +914,6 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	// Libera la memoria de la textura
 	textureTerrainBlendMap.freeImage(bitmap);
 
-	Texture textureParticlesFountain("../Textures/bluewater.png");
-	bitmap = textureParticlesFountain.loadImage();
-	data = textureParticlesFountain.convertToData(bitmap, imageWidth, imageHeight);
-	glGenTextures(1, &textureParticleFountainID);
-	glBindTexture(GL_TEXTURE_2D, textureParticleFountainID);
-	// set the texture wrapping parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);// set texture wrapping to GL_REPEAT (default wrapping method)
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	// set texture filtering parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	if (data) {
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0,
-			GL_BGRA, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else
-		std::cout << "Failed to load texture" << std::endl;
-	textureParticlesFountain.freeImage(bitmap);
 
 	Texture textureParticleThruster("../Textures/light.png");
 	bitmap = textureParticleThruster.loadImage();
@@ -1063,6 +1042,9 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	buffer[6] = alutCreateBufferFromFile("../sounds/futureBase.wav");
 	buffer[7] = alutCreateBufferFromFile("../sounds/Lichtenberg_Figures.wav");
 	buffer[8] = alutCreateBufferFromFile("../sounds/hit.wav");
+	buffer[9] = alutCreateBufferFromFile("../sounds/warning.wav");
+	buffer[10] = alutCreateBufferFromFile("../sounds/noHope.wav");
+
 
 	int errorAlut = alutGetError();
 	if (errorAlut != ALUT_ERROR_NO_ERROR) {
@@ -1169,6 +1151,22 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	alSourcei(source[10], AL_LOOPING, 0);
 	alSourcef(source[10], AL_MAX_DISTANCE, 2000);
 
+	alSourcef(source[11], AL_PITCH, 1.0f);
+	alSourcef(source[11], AL_GAIN, 20.0f);
+	alSourcefv(source[11], AL_POSITION, source4Pos);
+	alSourcefv(source[11], AL_VELOCITY, source4Vel);
+	alSourcei(source[11], AL_BUFFER, buffer[9]);
+	alSourcei(source[11], AL_LOOPING, 0);
+	alSourcef(source[11], AL_MAX_DISTANCE, 2000);
+
+	alSourcef(source[12], AL_PITCH, 1.0f);
+	alSourcef(source[12], AL_GAIN, 1.0f);
+	alSourcefv(source[12], AL_POSITION, source4Pos);
+	alSourcefv(source[12], AL_VELOCITY, source4Vel);
+	alSourcei(source[12], AL_BUFFER, buffer[10]);
+	alSourcei(source[12], AL_LOOPING, 0);
+	alSourcef(source[12], AL_MAX_DISTANCE, 2000);
+
 }
 
 void destroy() {
@@ -1182,7 +1180,6 @@ void destroy() {
 	shaderMulLighting.destroy();
 	shaderSkybox.destroy();
 	shaderTerrain.destroy();
-	shaderParticlesFountain.destroy();
 	shaderParticlesLeftThruster.destroy();
 	shaderParticlesRightThruster.destroy();
 
@@ -1222,29 +1219,13 @@ void destroy() {
 	glDeleteTextures(1, &textureTerrainGID);
 	glDeleteTextures(1, &textureTerrainBID);
 	glDeleteTextures(1, &textureTerrainBlendMapID);
-	glDeleteTextures(1, &textureParticleFountainID);
 	glDeleteTextures(1, &textureParticleThrusterID);
 
 	// Cube Maps Delete
 	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 	glDeleteTextures(1, &skyboxTextureID);
 
-	// Remove the buffer of the fountain particles
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glDeleteBuffers(1, &initVel);
-	glDeleteBuffers(1, &startTime);
-	glBindVertexArray(0);
-	glDeleteVertexArrays(1, &VAOParticles);
 
-	// Remove the buffer of the Thruster particles
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glDeleteBuffers(2, posBuf);
-	glDeleteBuffers(2, velBuf);
-	glDeleteBuffers(2, age);
-	glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
-	glDeleteTransformFeedbacks(2, feedback);
-	glBindVertexArray(0);
-	glDeleteVertexArrays(1, &VAOParticlesThruster);
 }
 
 void reshapeCallback(GLFWwindow *Window, int widthRes, int heightRes) {
@@ -1300,187 +1281,187 @@ bool processInput(bool continueApplication) {
 	if (exitApp || glfwWindowShouldClose(window) != 0) {
 		return false;
 	}
+	if (!gameOver) {
+		if (mainGame) {
 
-	if (mainGame) {
-
-		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-			camera->mouseMoveCamera(offsetX, 0.0, deltaTime);
-			spaceshipDirection = camera->getFront();
-			std::cout << "camera front: (" << spaceshipDirection.x << "," << spaceshipDirection.y << "," << spaceshipDirection.z << ")" << std::endl;
-		}
-		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
-			camera->mouseMoveCamera(0.0, offsetY, deltaTime);
-			std::cout << "camera pitch: " << camera->getPitch() << std::endl;
-		}
-		offsetX = 0;
-		offsetY = 0;
-
-		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-			leftPressed = true;
-			if (numberOfTicksL < 20) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
-				spaceshipRotXLimit += spaceshipRotX;
-				numberOfTicksL++;
+			if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+				camera->mouseMoveCamera(offsetX, 0.0, deltaTime);
+				spaceshipDirection = camera->getFront();
+				std::cout << "camera front: (" << spaceshipDirection.x << "," << spaceshipDirection.y << "," << spaceshipDirection.z << ")" << std::endl;
 			}
-			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, -0.2, 0.07));
-
-			if (!isPlaying(source[0])) {
-				alSourcePlay(source[0]);
+			if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+				camera->mouseMoveCamera(0.0, offsetY, deltaTime);
+				std::cout << "camera pitch: " << camera->getPitch() << std::endl;
 			}
+			offsetX = 0;
+			offsetY = 0;
+
+			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+				leftPressed = true;
+				if (numberOfTicksL < 20) {
+					modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotX), glm::vec3(1, 0, 0));
+					spaceshipRotXLimit += spaceshipRotX;
+					numberOfTicksL++;
+				}
+				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, -0.2, 0.07));
+
+				if (!isPlaying(source[0])) {
+					alSourcePlay(source[0]);
+				}
 
 
-		}
-		else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-			rightPressed = true;
-			if (numberOfTicksR < 20) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotX), glm::vec3(1, 0, 0));
-				spaceshipRotXLimit -= spaceshipRotX;
-				numberOfTicksR++;
 			}
-			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0.2, 0.07));
+			else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+				rightPressed = true;
+				if (numberOfTicksR < 20) {
+					modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotX), glm::vec3(1, 0, 0));
+					spaceshipRotXLimit -= spaceshipRotX;
+					numberOfTicksR++;
+				}
+				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0.2, 0.07));
 
 
-			if (!isPlaying(source[3])) {
-				alSourcePlay(source[3]);
+				if (!isPlaying(source[3])) {
+					alSourcePlay(source[3]);
+				}
+
+
 			}
+			if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_RELEASE) {
 
+				rightPressed = false;
+				alSourceStop(source[3]);
 
-		}
-		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_RELEASE) {
-
-			rightPressed = false;
-			alSourceStop(source[3]);
-
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_RELEASE) {
-			leftPressed = false;
-			alSourceStop(source[0]);
-		}
-
-
-
-		if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
-			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.2, 0, 0));
-			accelEnabled = true;
-			if (!isPlaying(source[5])) {
-				alSourcePlay(source[5]);
-			}
-			std::cout << "ship Position: [ " << modelMatrixSpaceship[3].x << "," << modelMatrixSpaceship[3].y << "," << modelMatrixSpaceship[3].z << " ]" << std::endl;
-			//stopSource1 = true;
-
-		}
-		else if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
-			brakeEnabled = true;
-
-		}
-		if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
-			accelEnabled = false;
-			alSourceStop(source[5]);
-			stopSource1 = false;
-			
-		}
-		if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE) {
-			brakeEnabled = false;
-		}
-
-
-		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-			upPressed = true;
-			if (numberOfTicksU < 20) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
-				spaceshipRotZLimit += spaceshipRotZ;
-				numberOfTicksU++;
-			}
-			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, 0.1));
-
-			if (!isPlaying(source[4])) {
-				alSourcePlay(source[4]);
 			}
 
-		}
-		else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-			downPressed = true;
-			if (numberOfTicksD < 20) {
-				modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
-				spaceshipRotZLimit -= spaceshipRotZ;
-				numberOfTicksD++;
-			}
-			modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, -0.1));
-
-			if (!isPlaying(source[2])) {
-				alSourcePlay(source[2]);
+			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_RELEASE) {
+				leftPressed = false;
+				alSourceStop(source[0]);
 			}
 
-		}
-		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_RELEASE) {
-			downPressed = false;
-			heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksD * 0.429;
-			alSourceStop(source[2]);
 
-		}
-		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_RELEASE) {
-			upPressed = false;
-			heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksU * 0.429;
-			alSourceStop(source[4]);
-		}
 
-	
-	}
-	
-	else if (startMenu) {
+			if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(-0.2, 0, 0));
+				accelEnabled = true;
+				if (!isPlaying(source[5])) {
+					alSourcePlay(source[5]);
+				}
+				std::cout << "ship Position: [ " << modelMatrixSpaceship[3].x << "," << modelMatrixSpaceship[3].y << "," << modelMatrixSpaceship[3].z << " ]" << std::endl;
+				//stopSource1 = true;
 
-		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+			}
+			else if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
+				brakeEnabled = true;
 
-			if (option) {
-				option = false;
+			}
+			if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
+				accelEnabled = false;
+				alSourceStop(source[5]);
+				stopSource1 = false;
+
+			}
+			if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE) {
+				brakeEnabled = false;
 			}
 
-			alSourcePlay(source[6]);
 
-		}
-		else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+			if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+				upPressed = true;
+				if (numberOfTicksU < 20) {
+					modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(spaceshipRotZ), glm::vec3(0, 1, 0));
+					spaceshipRotZLimit += spaceshipRotZ;
+					numberOfTicksU++;
+				}
+				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, 0.1));
 
-			if (!option) {
-				option = true;
+				if (!isPlaying(source[4])) {
+					alSourcePlay(source[4]);
+				}
+
+			}
+			else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+				downPressed = true;
+				if (numberOfTicksD < 20) {
+					modelMatrixSpaceship = glm::rotate(modelMatrixSpaceship, glm::radians(-spaceshipRotZ), glm::vec3(0, 1, 0));
+					spaceshipRotZLimit -= spaceshipRotZ;
+					numberOfTicksD++;
+				}
+				modelMatrixSpaceship = glm::translate(modelMatrixSpaceship, glm::vec3(0, 0, -0.1));
+
+				if (!isPlaying(source[2])) {
+					alSourcePlay(source[2]);
+				}
+
+			}
+			if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_RELEASE) {
+				downPressed = false;
+				heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksD * 0.429;
+				alSourceStop(source[2]);
+
+			}
+			if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_RELEASE) {
+				upPressed = false;
+				heightOfTurn = glm::sin(spaceshipRotZLimit) * 9.87 / numberOfTicksU * 0.429;
+				alSourceStop(source[4]);
 			}
 
-			alSourcePlay(source[6]);
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
-
-			enterPressed = true;
-
-			if (option) {
-
-				startMenu = false;
-				mainGame = false;
-				selectShip = true;
-				alSourcePlay(source[7]);
-			}
-			else {
-
-				startMenu = false;
-				mainGame = true;
-				selectShip = false;
-				alSourcePlay(source[7]);
-			}
 
 		}
-	}
 
-	if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_RELEASE) {
-		enterPressed = false;
-	}
+		else if (startMenu) {
+
+			if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+
+				if (option) {
+					option = false;
+				}
+
+				alSourcePlay(source[6]);
+
+			}
+			else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+
+				if (!option) {
+					option = true;
+				}
+
+				alSourcePlay(source[6]);
+			}
+
+			if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
+
+				enterPressed = true;
+
+				if (option) {
+
+					startMenu = false;
+					mainGame = false;
+					selectShip = true;
+					alSourcePlay(source[7]);
+				}
+				else {
+
+					startMenu = false;
+					mainGame = true;
+					selectShip = false;
+					alSourcePlay(source[7]);
+				}
+
+			}
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_RELEASE) {
+			enterPressed = false;
+		}
 
 		if (selectShip && !enterPressed) {
-		
+
 
 			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
 
 				std::cout << "izq" << std::endl;
-				if (shipSelect==0) {
+				if (shipSelect == 0) {
 
 				}
 				else {
@@ -1503,15 +1484,15 @@ bool processInput(bool continueApplication) {
 
 			if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
 
-					startMenu = false;
-					mainGame = true;
-					selectShip = false;
-					alSourcePlay(source[7]);
+				startMenu = false;
+				mainGame = true;
+				selectShip = false;
+				alSourcePlay(source[7]);
 
 			}
 		}
 
-	
+	}
 	glfwPollEvents();
 	return continueApplication;
 }
@@ -1575,6 +1556,7 @@ void applicationLoop() {
 				// Variables donde se guardan las matrices de cada articulacion por 1 frame
 			
 				if (mainGame) {
+					alSourceStop(source[8]);
 					distanceFromTarget = 7;
 					camera->setDistanceFromTarget(distanceFromTarget);
 					glm::mat4 projection = glm::perspective(glm::radians(45.0f),
@@ -1637,11 +1619,6 @@ void applicationLoop() {
 						glm::value_ptr(view));
 					shaderTerrain.setMatrix4("lightSpaceMatrix", 1, false,
 						glm::value_ptr(lightSpaceMatrix));
-					// Settea la matriz de vista y projection al shader para el fountain
-					shaderParticlesFountain.setMatrix4("projection", 1, false,
-						glm::value_ptr(projection));
-					shaderParticlesFountain.setMatrix4("view", 1, false,
-						glm::value_ptr(view));
 					// Settea la matriz de vista y projection al shader para la turbina
 					shaderParticlesLeftThruster.setInt("Pass", 2);
 					shaderParticlesLeftThruster.setMatrix4("projection", 1, false, glm::value_ptr(projection));
@@ -1742,49 +1719,22 @@ void applicationLoop() {
 
 					//collider de asteroids
 					//std::vector<AbstractModel::SBB> asteroidsCollider(asteroidsPos.size());
-					
+
 					for (int i = 0; i < asteroidsPos.size(); i++) {
 						AbstractModel::SBB asteroidCollider;
 						glm::mat4 modelMatrixColliderAsteroids = glm::mat4(1.0f);
 						modelMatrixColliderAsteroids = glm::translate(modelMatrixColliderAsteroids, asteroidsPos[i]);
 						modelMatrixColliderAsteroids = glm::scale(modelMatrixColliderAsteroids, glm::vec3(1.0, 1.0, 1.0));
-						
+
 						modelMatrixColliderAsteroids = glm::translate(modelMatrixColliderAsteroids, modelAsteroid.getSbb().c);
 						asteroidCollider.c = glm::vec3(modelMatrixColliderAsteroids[3]);
 						asteroidCollider.ratio = modelAsteroid.getSbb().ratio * 1.0;
 						addOrUpdateColliders(collidersSBB, "asteroid:" + std::to_string(i), asteroidCollider, modelMatrixColliderAsteroids);
 					}
-					
 
-					/*******************************************
-					 * Render de colliders
-					 *******************************************/
-					/*
-					for (std::map<std::string, std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
-						collidersOBB.begin(); it != collidersOBB.end(); it++) {
-						glm::mat4 matrixCollider = glm::mat4(1.0);
-						matrixCollider = glm::translate(matrixCollider, std::get<0>(it->second).c);
-						matrixCollider = matrixCollider * glm::mat4(std::get<0>(it->second).u);
-						matrixCollider = glm::scale(matrixCollider, std::get<0>(it->second).e * 2.0f);
-						boxCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
-						boxCollider.enableWireMode();
-						boxCollider.render(matrixCollider);
-					}
-
-					for (std::map<std::string, std::tuple<AbstractModel::SBB, glm::mat4, glm::mat4> >::iterator it =
-						collidersSBB.begin(); it != collidersSBB.end(); it++) {
-						glm::mat4 matrixCollider = glm::mat4(1.0);
-						matrixCollider = glm::translate(matrixCollider, std::get<0>(it->second).c);
-						matrixCollider = glm::scale(matrixCollider, glm::vec3(std::get<0>(it->second).ratio * 2.0f));
-						sphereCollider.setColor(glm::vec4(1.0, 1.0, 1.0, 1.0));
-						sphereCollider.enableWireMode();
-						sphereCollider.render(matrixCollider);
-					}
-
-					*/
-					/*******************************************
-					 * Test Colisions
-					 *******************************************/
+					 /*******************************************
+					  * Test Colisions
+					  *******************************************/
 					for (std::map<std::string,
 						std::tuple<AbstractModel::OBB, glm::mat4, glm::mat4> >::iterator it =
 						collidersOBB.begin(); it != collidersOBB.end(); it++) {
@@ -1857,11 +1807,11 @@ void applicationLoop() {
 							if (!colIt->second)
 								addOrUpdateColliders(collidersOBB, jt->first);
 							else {
-								
+
 								if (jt->first.compare("spaceship") == 0) {
 									currentHitMoment = secondsCounter;
 									modelMatrixSpaceship = std::get<1>(jt->second);
-									if (currentHitMoment - lastHitMoment > 5) {
+									if (currentHitMoment - lastHitMoment > 2) {
 										shipHealth--;
 										hit = true;
 									}
@@ -1869,7 +1819,7 @@ void applicationLoop() {
 										hit = false;
 										dontPlay = false;
 									}
-									
+
 									lastHitMoment = currentHitMoment;
 								}
 							}
@@ -1954,6 +1904,8 @@ void applicationLoop() {
 
 					alSourcefv(source[9], AL_POSITION, source4Pos);
 					alSourcefv(source[10], AL_POSITION, source4Pos);
+					alSourcefv(source[11], AL_POSITION, source4Pos);
+					alSourcefv(source[12], AL_POSITION, source4Pos);
 
 					// Listener for the Thris person camera
 					listenerPos[0] = modelMatrixSpaceship[3].x;
@@ -1973,21 +1925,30 @@ void applicationLoop() {
 
 					alListenerfv(AL_ORIENTATION, listenerOri);
 
-					if (!stopSource1) {
-						if (!isPlaying(source[1])) {
+					if (!gameOver) {
+						if (!stopSource1) {
+							if (!isPlaying(source[1])) {
 
-							alSourcePlay(source[1]);
+								alSourcePlay(source[1]);
+							}
+						}
+						else alSourceStop(source[1]);
+
+
+						if (!isPlaying(source[9])) {
+							alSourcePlay(source[9]);
+						}
+				
+					}
+					else {
+						alSourceStop(source[1]);
+						alSourceStop(source[9]);
+						if (!isPlaying(source[12])) {
+
+							alSourcePlay(source[12]);
 						}
 					}
-					else alSourceStop(source[1]);
-
-
-				if (!isPlaying(source[9])) {
-					alSourcePlay(source[9]);
 				}
-
-				}
-
 				else if (startMenu) {
 					distanceFromTarget = 10;
 					camera->setDistanceFromTarget(distanceFromTarget);
@@ -2342,39 +2303,7 @@ void renderScene(bool renderParticles){
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_CULL_FACE);
 	for(std::map<float, std::pair<std::string, glm::vec3> >::reverse_iterator it = blendingSorted.rbegin(); it != blendingSorted.rend(); it++){
-		 if(renderParticles && it->second.first.compare("fountain") == 0){
-			/**********
-			 * Init Render particles systems
-			 */
-			glm::mat4 modelMatrixParticlesFountain = glm::mat4(1.0);
-			modelMatrixParticlesFountain = glm::translate(modelMatrixParticlesFountain, it->second.second);
-			modelMatrixParticlesFountain[3][1] = terrain.getHeightTerrain(modelMatrixParticlesFountain[3][0], modelMatrixParticlesFountain[3][2]) + 0.36 * 10.0;
-			modelMatrixParticlesFountain = glm::scale(modelMatrixParticlesFountain, glm::vec3(3.0, 3.0, 3.0));
-			currTimeParticlesAnimation = TimeManager::Instance().GetTime();
-			if(currTimeParticlesAnimation - lastTimeParticlesAnimation > 10.0)
-				lastTimeParticlesAnimation = currTimeParticlesAnimation;
-			//glDisable(GL_DEPTH_TEST);
-			glDepthMask(GL_FALSE);
-			// Set the point size
-			glPointSize(10.0f);
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, textureParticleFountainID);
-			shaderParticlesFountain.turnOn();
-			shaderParticlesFountain.setFloat("Time", float(currTimeParticlesAnimation - lastTimeParticlesAnimation));
-			shaderParticlesFountain.setFloat("ParticleLifetime", 3.5f);
-			shaderParticlesFountain.setInt("ParticleTex", 0);
-			shaderParticlesFountain.setVectorFloat3("Gravity", glm::value_ptr(glm::vec3(0.0f, -0.3f, 0.0f)));
-			shaderParticlesFountain.setMatrix4("model", 1, false, glm::value_ptr(modelMatrixParticlesFountain));
-			glBindVertexArray(VAOParticles);
-			glDrawArrays(GL_POINTS, 0, nParticles);
-			glDepthMask(GL_TRUE);
-			//glEnable(GL_DEPTH_TEST);
-			shaderParticlesFountain.turnOff();
-			/**********
-			 * End Render particles systems
-			 */
-		}
-		 else if (it->second.first.compare("HUD") == 0) {
+		 if (it->second.first.compare("HUD") == 0) {
 			 
 			 modelMatrixHUD[3] = modelMatrixSpaceship[3];
 			 glm::mat4 modelMatrixHUD2 = glm::mat4(modelMatrixHUD);
@@ -2391,6 +2320,11 @@ void renderScene(bool renderParticles){
 				 modelHudHalfHealth.render(modelMatrixHUD2);
 			 }
 			 else if (shipHealth == 1) {
+				 if (!dontPlay2) {
+					 if(!isPlaying(source[11]))
+						alSourcePlay(source[11]);
+					 dontPlay2 = true;
+				 }
 				 if (secondsCounter % 2 != 0)
 					 modelHudThirdHealth.render(modelMatrixHUD2);
 				 else
@@ -2398,7 +2332,13 @@ void renderScene(bool renderParticles){
 			 }
 			 else {
 				 modelHudNoHealth.render(modelMatrixHUD2);
+				 gameOver = true;
 			 }
+
+
+
+
+
 			 glm::mat4 modelMatrixHUD3 = glm::mat4(modelMatrixHUD2);
 			 modelMatrixHUD3 = glm::translate(modelMatrixHUD3, glm::vec3(0, 0, 5));
 			 modelHit.setAnimationIndex(0);
@@ -2412,8 +2352,7 @@ void renderScene(bool renderParticles){
 					 }
 				 }
 				 else {
-					 hit = false;
-					 dontPlay = false;
+
 				 }
 
 			 }
